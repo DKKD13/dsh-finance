@@ -1,8 +1,8 @@
 <p align="center"><img src="docs/banner.svg" alt="DSH Finance — 从一份材料，到一个有依据的判断" width="100%"></p>
 
 <p align="center">
-  <strong>你的研究工作台，也是一间 AI 投研办公室。</strong><br>
-  A local-first finance research workspace for DeepSeek Harness.
+  <strong>DKKD13 个人开发的 DSH 金融研究插件。</strong><br>
+  An independent personal plugin for DeepSeek Harness.
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
 
 DSH Finance 把市场、研究 Skills、资料、观点和模拟基金放进同一个 DeepSeek Harness 工作台。选一个研究任务，带着材料进入对话；读结论时，随时回到原文，继续追问。
 
-这是 **0.1.0 预览版**，适用于桌面 Web Client。第三方插件，与 DeepSeek 官方无隶属关系。
+这是 **DKKD13 个人开发和维护的第三方插件**，与 DeepSeek 官方无隶属关系。当前为 **0.1.0 预览版**，适用于桌面 Web Client。
 
 ## 看看它能做什么
 
