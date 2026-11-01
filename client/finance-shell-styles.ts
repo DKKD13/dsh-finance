@@ -7,6 +7,7 @@ export const FINANCE_SHELL_STYLE = `
 .rg-pf-brand span { font-weight:450; color:var(--dsw-alias-label-secondary); }
 .rg-pf-search { display:flex; align-items:center; gap:10px; width:min(420px,42%); min-width:180px; padding:0 13px; border:1px solid var(--dsw-alias-border-l2); border-radius:9px; color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-1); }
 [data-rg-root] .rg-pf-search input { min-width:0; flex:1; width:100%; height:39px; padding:0; border:0; border-radius:0; background:transparent; font-size:13px; }
+[data-rg-root] .rg-pf-search input::-webkit-search-cancel-button { display:none; }
 .rg-pf-search:focus-within { outline:2px solid var(--dsw-alias-brand-primary); outline-offset:2px; }
 [data-rg-root] .rg-pf-search input:focus-visible { box-shadow:none; }
 .rg-pf-search button { padding:5px; }

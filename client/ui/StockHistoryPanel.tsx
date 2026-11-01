@@ -42,6 +42,7 @@ export function StockHistoryPanel({ store, symbol, active, locale, t }: {
   const history = readMarketHistory(value)
   const stale = loaded.current !== key
   const rows = descending ? [...history.bars].reverse() : history.bars
+  const priceFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const exportData = () => {
     const url = URL.createObjectURL(new Blob(['\uFEFF',historyCsv(history.bars)],{type:'text/csv;charset=utf-8'}))
     const link = document.createElement('a'); link.href = url; link.download = `${symbol}-historical.csv`; link.click()
@@ -55,7 +56,7 @@ export function StockHistoryPanel({ store, symbol, active, locale, t }: {
     {dates && <p className="rg-stock-history-dates">{dates.start} — {new Date(Date.parse(dates.end)-86400000).toISOString().slice(0,10)}</p>}
     {busy && <p role="status">{text('正在加载历史数据…', 'Loading historical data…')}</p>}
     {error && <p role="alert">{error} <button type="button" className="rg-btn" onClick={() => setRetry(value => value + 1)}>{text('重试', 'Retry')}</button></p>}
-    <div className="rg-stock-history-table" data-stale={active && stale || undefined}><table><thead><tr>{[text('日期', 'Date'),text('开盘', 'Open'),text('最高', 'High'),text('最低', 'Low'),text('收盘', 'Close'),text('成交量', 'Volume')].map((label,i) => <th key={label}>{i === 0 ? <button type="button" onClick={() => setDescending(value => !value)}>{label} {descending ? '↓' : '↑'}</button> : label}</th>)}</tr></thead><tbody>{rows.slice(0,limit).map((bar,i) => <tr key={`${bar.timestamp}-${i}`}><td><time>{bar.timestamp.slice(0,10)}</time></td>{[bar.open,bar.high,bar.low,bar.close,bar.volume].map((number,j) => <td key={j} title={number === null ? undefined : String(number)}>{formatNumber(number)}</td>)}</tr>)}</tbody></table></div>
+    <div className="rg-stock-history-table" data-stale={active && stale || undefined}><table><thead><tr>{[text('日期', 'Date'),text('开盘', 'Open'),text('最高', 'High'),text('最低', 'Low'),text('收盘', 'Close'),text('成交量', 'Volume')].map((label,i) => <th key={label}>{i === 0 ? <button type="button" onClick={() => setDescending(value => !value)}>{label} {descending ? '↓' : '↑'}</button> : label}</th>)}</tr></thead><tbody>{rows.slice(0,limit).map((bar,i) => <tr key={`${bar.timestamp}-${i}`}><td><time>{bar.timestamp.slice(0,10)}</time></td>{[bar.open,bar.high,bar.low,bar.close,bar.volume].map((number,j) => <td key={j} title={number === null ? undefined : String(number)}>{j < 4 && number !== null && Number.isFinite(number) && Math.abs(number) >= 1 ? priceFormat.format(number) : formatNumber(number)}</td>)}</tr>)}</tbody></table></div>
     {!busy && !error && !history.bars.length && <p>{text('所选区间没有可用价格。', 'No prices are available for this period.')}</p>}
     {rows.length > limit && <button type="button" className="rg-btn rg-stock-history-more" onClick={() => setLimit(value => value + 50)}>{text('查看更多', 'Show more')} ({Math.min(limit,rows.length)}/{rows.length})</button>}
     {value !== null && <details className="rg-stock-history-provenance"><summary>{text('数据来源', 'Data source')} · Yahoo</summary><ProvenanceList value={value} t={t}/></details>}
