@@ -92,6 +92,74 @@ describe('real provider response normalization with mocked transport', () => {
     expect(urls.every(url => !/api.?key|token|cookie/i.test(url))).toBe(true)
   })
 
+  describe('Yahoo history explicit UTC window', () => {
+    const fetchedAt = '2026-11-01T12:00:00.000Z'
+    const dailyBars = [
+      { timestamp: '2026-10-28T23:59:59.000Z', open: 0.10, high: 0.12, low: 0.09, close: 0.11, volume: 100, adjustedClose: 0.105 },
+      { timestamp: '2026-10-29T00:00:00.000Z', open: 0.20, high: 0.22, low: 0.19, close: 0.21, volume: 200, adjustedClose: 0.205 },
+      { timestamp: '2026-10-30T00:00:00.000Z', open: 0.30, high: 0.32, low: 0.29, close: 0.31, volume: 300, adjustedClose: 0.305 },
+      { timestamp: '2026-10-31T00:00:00.000Z', open: 0.40, high: 0.42, low: 0.39, close: 0.41, volume: 400, adjustedClose: 0.405 },
+      { timestamp: '2026-10-31T00:00:01.000Z', open: 0.50, high: 0.52, low: 0.49, close: 0.51, volume: 500, adjustedClose: 0.505 },
+    ]
+    const subsecondBars = dailyBars.map((bar, index) => ({ ...bar, timestamp: [
+      '2026-10-29T00:00:00.000Z', '2026-10-29T00:00:00.250Z', '2026-10-29T00:00:00.500Z',
+      '2026-10-29T00:00:00.750Z', '2026-10-29T00:00:01.000Z',
+    ][index]! }))
+    function historyPlane(bars: readonly (typeof dailyBars)[number][], urls: URL[]) {
+      const fetch: FetchLike = async url => {
+        urls.push(url)
+        return json({ chart: { result: [{
+          meta: { symbol: 'DOGE-USD', currency: 'USD', exchangeName: 'CCC' },
+          timestamp: bars.map(bar => Date.parse(bar.timestamp) / 1000),
+          indicators: {
+            quote: [{ open: bars.map(bar => bar.open), high: bars.map(bar => bar.high), low: bars.map(bar => bar.low), close: bars.map(bar => bar.close), volume: bars.map(bar => bar.volume) }],
+            adjclose: [{ adjclose: bars.map(bar => bar.adjustedClose) }],
+          },
+        }], error: null } })
+      }
+      return new FinanceDataPlane({}, { fetch, lookup: publicLookup, now: () => fetchedAt })
+    }
+
+    it.each([
+      { label: 'date-only bounds', start: '2026-10-29', end: '2026-10-31', bars: dailyBars, expected: [dailyBars[1], dailyBars[2]], period1: '1793232000', period2: '1793404800' },
+      { label: 'equivalent offset ISO bounds', start: '2026-10-28T19:00:00-05:00', end: '2026-10-31T09:00:00+09:00', bars: dailyBars, expected: [dailyBars[1], dailyBars[2]], period1: '1793232000', period2: '1793404800' },
+      { label: 'subsecond offset bounds', start: '2026-10-29T08:00:00.250+08:00', end: '2026-10-28T19:00:00.750-05:00', bars: subsecondBars, expected: [subsecondBars[1], subsecondBars[2]], period1: '1793232000', period2: '1793232001' },
+    ])('keeps only [start,end) bars for $label without shifting observation fields', async ({ start, end, bars, expected, period1, period2 }) => {
+      const urls: URL[] = []
+      const result = await historyPlane(bars, urls).fetch({ source: 'yahoo', kind: 'history', symbol: 'DOGE-USD', start, end, interval: '1d' })
+      expect(urls[0]?.searchParams.get('period1')).toBe(period1)
+      expect(urls[0]?.searchParams.get('period2')).toBe(period2)
+      expect(urls[0]?.searchParams.has('range')).toBe(false)
+      expect(result.errors).toEqual([])
+      expect(result.items).toHaveLength(1)
+      const item = result.items[0]!
+      expect(item.data).toEqual({ symbol: 'DOGE-USD', currency: 'USD', exchangeName: 'CCC', bars: expected })
+      expect(JSON.parse(item.content)).toEqual(item.data)
+      expect(item).toMatchObject({ availableAt: fetchedAt, fetchedAt, asOf: fetchedAt, provenance: {
+        observationAt: fetchedAt, publicationAt: null, barTimestampBasis: 'Yahoo timestamp is the bar start',
+      } })
+    })
+
+    it('preserves all timestamped bars for a preset range without explicit bounds', async () => {
+      const urls: URL[] = []
+      const result = await historyPlane(dailyBars, urls).fetch({ source: 'yahoo', kind: 'history', symbol: 'DOGE-USD', range: '1mo', interval: '1d' })
+      expect(urls[0]?.searchParams.get('range')).toBe('1mo')
+      expect(urls[0]?.searchParams.has('period1')).toBe(false)
+      expect(urls[0]?.searchParams.has('period2')).toBe(false)
+      expect(result.items[0]?.data).toEqual({ symbol: 'DOGE-USD', currency: 'USD', exchangeName: 'CCC', bars: dailyBars })
+    })
+
+    it('returns UNAVAILABLE when every returned bar is outside the explicit window', async () => {
+      const data = historyPlane([dailyBars[0]!, dailyBars[3]!, dailyBars[4]!], [])
+      await expect(data.fetch({ source: 'yahoo', kind: 'history', symbol: 'DOGE-USD', start: '2026-10-29', end: '2026-10-31' })).rejects.toMatchObject({ code: 'UNAVAILABLE' })
+    })
+
+    it('retains the existing UNAVAILABLE contract for an empty upstream history', async () => {
+      const data = historyPlane([], [])
+      await expect(data.fetch({ source: 'yahoo', kind: 'history', symbol: 'DOGE-USD', start: '2026-10-29', end: '2026-10-31' })).rejects.toMatchObject({ code: 'UNAVAILABLE' })
+    })
+  })
+
   it.each([
     { interval: '1m', timestamp: 1768003140, iso: '2026-01-09T23:59:00.000Z', adjustedClose: 103.25 },
     { interval: '1d', timestamp: 1767969000, iso: '2026-01-09T14:30:00.000Z', adjustedClose: 102.5 },

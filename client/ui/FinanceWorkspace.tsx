@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { GraphEdge, GraphNode } from '../../src/graph.ts'
 import type { FinanceSection, FinanceStore } from '../finance-store.ts'
 import type { Translate } from '../store.ts'
-import { useFinance } from './FinanceCommon.tsx'
+import { formatNumber, useFinance } from './FinanceCommon.tsx'
 import { BriefingPanel, PredictionsPanel } from './FinanceMemory.tsx'
 import { PortfolioPanel, ValuationsPanel } from './FinanceModels.tsx'
 import { MarketPanel, OverviewPanel } from './FinancePanels.tsx'
@@ -14,7 +14,7 @@ import { ReportsPanel } from './ReportsPanel.tsx'
 import { GuidePanel } from './GuidePanel.tsx'
 import { deriveWorkflow } from '../workflow.ts'
 import type { ResearchStore } from '../research-store.ts'
-import { DiscoveryPanel, discoveryDemoAssets, discoveryDemoCrypto, discoveryRecords } from './FinanceDiscovery.tsx'
+import { DiscoveryPanel, discoveryDemoAssets, discoveryDemoCrypto, discoveryRecords, storedQuoteEvidence } from './FinanceDiscovery.tsx'
 import { ScreenerPanel, PoliticiansPanel } from './FinanceScreening.tsx'
 import { EarningsPanel, PredictionMarketsPanel } from './FinanceEvents.tsx'
 import { WorkflowCatalog } from './FinanceCatalog.tsx'
@@ -100,8 +100,18 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
   useEffect(() => { if (shareOpen) shareDialog.current?.showModal() }, [shareOpen])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchIndex, setSearchIndex] = useState(-1)
-  const assetMatches = (demo ? [...discoveryDemoAssets, ...discoveryDemoCrypto] : [...discoveryRecords(nodes, false), ...discoveryRecords(nodes, true)])
-    .filter(asset => `${asset.symbol} ${asset.name}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).slice(0, 7)
+  const assetMatches = useMemo(() => {
+    const matches = (demo ? [...discoveryDemoAssets, ...discoveryDemoCrypto] : [...discoveryRecords(nodes, false), ...discoveryRecords(nodes, true)])
+      .filter(asset => `${asset.symbol} ${asset.name}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).slice(0, 7)
+    if (demo) return matches
+    const quotes = storedQuoteEvidence(nodes)
+    return matches.map(asset => {
+      if (asset.price !== null || asset.change !== null) return asset
+      const quote = quotes.get(asset.symbol.toUpperCase())
+      return quote === undefined ? asset : { ...asset, price: quote.price, change: quote.change }
+    })
+  }, [demo, nodes, query])
+  const searchPrice = (value: number | null) => value === null ? '—' : Number.isFinite(value) && Math.abs(value) < 1 ? formatNumber(value) : value.toLocaleString(undefined, { maximumFractionDigits: 2 })
   const assetSymbol = state.market.quote?.symbol || state.market.history?.symbol || activeSymbol || ''
   const quoteResult = state.operations.quote?.result
   const quoteData = readQuote(quoteResult)
@@ -231,7 +241,7 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
           }} aria-label={text('搜索股票、公司或工作流', 'Search stocks, companies or workflows')} placeholder={text('搜索股票、加密货币等…', 'Search stocks, crypto and more…')} />
           {query && <button type="button" aria-label={text('清除搜索', 'Clear search')} onClick={() => { setQuery(''); setSearchIndex(-1) }}>×</button>}
           <button type="submit" aria-label={text('搜索', 'Search')}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M16 4v7H4m4-4-4 4 4 4"/></svg></button>
-          {searchOpen && <div className="rg-pf-search-results" id="rg-finance-search-results" role="listbox" aria-label={text('搜索结果', 'Search results')}><small>{demo ? text('样例标的', 'Example instruments') : text('资料库中的标的', 'Instruments in your library')}</small>{assetMatches.map((asset, index) => <button type="button" role="option" id={`rg-finance-search-result-${index}`} key={asset.symbol} aria-selected={searchIndex === index} onMouseEnter={() => setSearchIndex(index)} onClick={() => { setSearchOpen(false); setQuery(''); openSymbol(asset.symbol) }}><AssetLogo symbol={asset.symbol} /><span><strong>{asset.name}</strong><small>{asset.symbol}{asset.sector ? ` · ${asset.sector}` : ''}</small></span><span>{asset.price === null ? '—' : asset.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}<small data-up={asset.change === null ? undefined : asset.change >= 0}>{asset.change === null ? '—' : `${asset.change >= 0 ? '+' : ''}${asset.change.toFixed(2)}%`}</small></span></button>)}{assetMatches.length === 0 && <p>{text('本地未找到匹配项。按回车查询代码，或研究这个问题。', 'No local match. Press Enter to look up the symbol or research this question.')}</p>}</div>}
+          {searchOpen && <div className="rg-pf-search-results" id="rg-finance-search-results" role="listbox" aria-label={text('搜索结果', 'Search results')}><small>{demo ? text('样例标的', 'Example instruments') : text('资料库中的标的', 'Instruments in your library')}</small>{assetMatches.map((asset, index) => <button type="button" role="option" id={`rg-finance-search-result-${index}`} key={asset.symbol} aria-selected={searchIndex === index} onMouseEnter={() => setSearchIndex(index)} onClick={() => { setSearchOpen(false); setQuery(''); openSymbol(asset.symbol) }}><AssetLogo symbol={asset.symbol} /><span><strong>{asset.name}</strong><small>{asset.symbol}{asset.sector ? ` · ${asset.sector}` : ''}</small></span><span>{searchPrice(asset.price)}<small data-up={asset.change === null ? undefined : asset.change >= 0}>{asset.change === null ? '—' : `${asset.change >= 0 ? '+' : ''}${asset.change.toFixed(2)}%`}</small></span></button>)}{assetMatches.length === 0 && <p>{text('本地未找到匹配项。按回车查询代码，或研究这个问题。', 'No local match. Press Enter to look up the symbol or research this question.')}</p>}</div>}
         </form>
         <div className="rg-pf-header-actions">
           {assetPage && <button type="button" className="rg-pf-share" onClick={() => { const url = new URL(window.location.href); url.searchParams.set('asset', assetSymbol); setShareUrl(url.href); setShareNotice(''); setShareOpen(true) }}><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden><path d="M12 3l5 5-5 4V9c-5 0-7 3-8 6 0-7 3-9 8-9V3Z"/><path d="M17 13v4H3V6h3"/></svg>{text('分享', 'Share')}</button>}<button type="button" className="rg-pf-assistant-button" onClick={() => { setAssistant(value => !value) }}>{text('金融助手', 'Finance assistant')}<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M3 8h10m-4-4 4 4-4 4"/></svg></button>
