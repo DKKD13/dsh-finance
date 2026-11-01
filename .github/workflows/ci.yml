@@ -1,0 +1,25 @@
+name: Release checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_OPTIONS: --max-old-space-size=768
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run --maxWorkers=1 --minWorkers=1
+      - run: node --test --test-concurrency=1 "tests/skills/*.test.mjs"
+      - run: npm run build
+      - run: npm pack --dry-run

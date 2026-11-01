@@ -1,0 +1,970 @@
+{
+  "$schema": "https://json.schemastore.org/catalog.json",
+  "version": 1,
+  "generatedBy": "scripts/migrate-skills.mjs（重新运行即可再生成，请勿手改）",
+  "note": "供 Host 做可选优化（如批量注册嵌套技能、预热外部依赖检测）；Host 不依赖本文件也能工作 —— 顶层技能由 DSH 的标准技能发现机制直接注册。",
+  "skillsRoot": "skills",
+  "skills": [
+    {
+      "name": "catalyst-calendar",
+      "path": "catalyst-calendar/SKILL.md",
+      "kind": "core",
+      "description": "构建与复盘金融催化日历。用于财报、产品、监管、行业与宏观事件；以 catalyst/prediction 节点记录时间、证据、影响链和到期结算，不输出交易指令。",
+      "resources": [
+        "LICENSE",
+        "references/catalyst-method.md"
+      ],
+      "externalDependencies": [
+        "公开官方日历/公告读取能力",
+        "finance_briefing.evaluate（宿主确定性校准汇总）"
+      ],
+      "relations": [
+        {
+          "type": "suggests",
+          "target": "equity-earnings",
+          "note": "财报类事件前瞻与复核"
+        },
+        {
+          "type": "suggests",
+          "target": "portfolio-weekly",
+          "note": "组合周报消费催化日历"
+        }
+      ]
+    },
+    {
+      "name": "market-watch",
+      "path": "daily-digest/market-watch.md",
+      "kind": "nested",
+      "description": "Fetch current public market data through finance_* and append a sourced market observation to today's graph deliverable. Standalone or part of /daily-digest. Invoke with /market-watch.",
+      "resources": [
+        "SKILL.md"
+      ],
+      "externalDependencies": [
+        "公开行情 provider（由宿主只读 finance_* 实际配置）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "standalone-of",
+          "target": "daily-digest",
+          "note": "可独立运行，也可作为 daily-digest Phase 4"
+        }
+      ]
+    },
+    {
+      "name": "daily-digest",
+      "path": "daily-digest/SKILL.md",
+      "kind": "core",
+      "description": "Run the daily public-source digest — ingest and cluster evidence, preserve video timestamps, write a graph deliverable, and append market observation through market-watch. Invoke with /daily-digest.",
+      "resources": [
+        "market-watch.md"
+      ],
+      "externalDependencies": [
+        "公开来源读取能力（宿主已有网页/只读 finance_*）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "bundles",
+          "target": "market-watch",
+          "note": "Phase 4 市场观察；market-watch 可独立运行"
+        },
+        {
+          "type": "uses",
+          "target": "finance-source-ingest",
+          "note": "每日公开材料采集"
+        },
+        {
+          "type": "uses",
+          "target": "video-deep-reader",
+          "note": "长视频保留 segment 时间戳"
+        },
+        {
+          "type": "uses",
+          "target": "catalyst-calendar",
+          "note": "事件与到期预测"
+        }
+      ]
+    },
+    {
+      "name": "deep-research",
+      "path": "deep-research/SKILL.md",
+      "kind": "core",
+      "description": "深度研究。在 research 的图谱基础稿之上，通过对抗性提问、历史类比、价格反推与独立证据复核寻找市场认知差。默认使用 finance_* 与 research_graph_*。",
+      "resources": [
+        "reference/inspirer.md"
+      ],
+      "externalDependencies": [
+        "同 research；需先有 research 的图谱基础稿"
+      ],
+      "relations": [
+        {
+          "type": "requires",
+          "target": "research",
+          "note": "必须先有 research 的图谱基础稿"
+        },
+        {
+          "type": "reads",
+          "target": "shared:_investment-philosophy.md",
+          "note": "全文"
+        },
+        {
+          "type": "uses",
+          "target": "knowledge-compiler",
+          "note": "读取编译假说与来源边，不把假说当最终报告"
+        },
+        {
+          "type": "uses",
+          "target": "valuation-model",
+          "note": "反向 DCF 与敏感性"
+        }
+      ]
+    },
+    {
+      "name": "equity-earnings",
+      "path": "equity-earnings/SKILL.md",
+      "kind": "core",
+      "description": "财报前瞻与财报后复核。用于 earnings preview、季度结果、beat/miss、指引与预测结算；冻结税前共识，避免事后信息泄漏，并产出图谱 deliverable。",
+      "resources": [
+        "LICENSE",
+        "references/earnings-method.md"
+      ],
+      "externalDependencies": [
+        "公开财报/共识 provider（由宿主只读 finance_* 实际配置）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "uses",
+          "target": "valuation-model",
+          "note": "财报后需要估值时完整重跑"
+        },
+        {
+          "type": "uses",
+          "target": "catalyst-calendar",
+          "note": "catalyzes/resolves 与到期结算"
+        },
+        {
+          "type": "suggests",
+          "target": "thesis-drift",
+          "note": "比较财报前后论文"
+        }
+      ]
+    },
+    {
+      "name": "finance-source-ingest",
+      "path": "finance-source-ingest/SKILL.md",
+      "kind": "core",
+      "description": "将公开金融材料采集为可审计图谱证据。用于监管文件、公司公告、公开行情、网页、Clipper 和文档导入；统一时间、contentHash、runId、provenance/locator，生成 ready 或 quarantined 的 source/raw/session，并交给 knowledge-compiler 编译假说。",
+      "resources": [
+        "references/evidence-card.md",
+        "references/host-inputs.md"
+      ],
+      "externalDependencies": [
+        "公开来源读取能力（宿主已有网页/只读 finance_*）"
+      ],
+      "relations": [
+        {
+          "type": "suggests",
+          "target": "knowledge-compiler",
+          "note": "ready sourceIds 进入假说编译"
+        },
+        {
+          "type": "suggests",
+          "target": "financial-data-rigor",
+          "note": "关键金融数字进一步归一化与交叉验证"
+        },
+        {
+          "type": "suggests",
+          "target": "video-deep-reader",
+          "note": "视频材料保留 segment 时间戳"
+        }
+      ]
+    },
+    {
+      "name": "financial-data-rigor",
+      "path": "financial-data-rigor/SKILL.md",
+      "kind": "core",
+      "description": "金融数据获取、口径归一化、多源交叉验证与证据卡写入。用于行情、财报、共识、汇率或任何关键金融数字进入研究之前；强制时间截面、统一 metadata 与确定性计算。",
+      "resources": [
+        "LICENSE"
+      ],
+      "externalDependencies": [
+        "公开金融数据 provider（由宿主只读 finance_* 实际配置）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "reads",
+          "target": "finance-source-ingest",
+          "note": "统一证据卡 metadata"
+        }
+      ]
+    },
+    {
+      "name": "flex-memory",
+      "path": "flex-memory/SKILL.md",
+      "kind": "core",
+      "description": "FLEX 图谱记忆循环。仅在用户主动要求反思、季度复盘或预测校准时触发；默认使用 finance_memory 与 finance_briefing，保留原始预测并防止未来信息泄漏。",
+      "externalDependencies": [
+        "finance_briefing.evaluate（宿主确定性预测评估）"
+      ],
+      "relations": [
+        {
+          "type": "uses",
+          "target": "financial-data-rigor",
+          "note": "实际值与预测使用同口径证据"
+        }
+      ]
+    },
+    {
+      "name": "andrej-karpathy-perspective",
+      "path": "huashu-nuwa/examples/andrej-karpathy-perspective/SKILL.md",
+      "kind": "example",
+      "description": "Andrej Karpathy的思维框架与表达方式。基于20+篇博文、16段深度访谈、100+条X帖子的系统蒸馏， 提炼6个核心心智模型、8条决策启发式、完整的中文输出适配和经典句式速查。 用途：作为思维顾问，用Karpathy的视角分析AI技术可靠性、学习方法、行业趋势、产品设计。 当用户提到「用Karpathy的视角」「Karpathy会怎么看」「卡帕西」「karpathy模式」时使用。 也适用于：Software 2.0/3.0讨论、vibe coding话题、神经网络训练、AI炒作判断、LLM能力边界。 即使用户只是说「从工程现实主义角度」「march of nines」「构建即理解」「锯齿状智能」也可触发。 不在用户只是普通问AI相关问题时触发——只在明确想要Karpathy式思维框架时激活。",
+      "resources": [
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "elon-musk-perspective",
+      "path": "huashu-nuwa/examples/elon-musk-perspective/SKILL.md",
+      "kind": "example",
+      "description": "马斯克的思维操作系统。基于传记、播客、推文、法庭证词、决策记录和外部批评的深度调研， 提炼5个核心心智模型、8条决策启发式和完整的表达DNA。 用途：作为思维顾问，用马斯克的视角分析问题、审视决策、拆解成本结构、挑战行业假设。 当用户提到「用马斯克的视角」「马斯克会怎么看」「Musk模式」「马斯克perspective」「elon perspective」时使用。 即使用户只是说「这个成本合理吗」「从第一性原理想想」「白痴指数是多少」「五步算法」「能不能垂直整合」也可触发。 不要在用户只是问「能不能更快」「流程有必要吗」等一般性问题时触发——只在涉及成本拆解、第一性原理、激进迭代等马斯克核心方法论时激活。",
+      "resources": [
+        "references/Elon-Musk-思想体系调研-20260404.md",
+        "references/research.md",
+        "references/马斯克决策模式与行为分析-20260404.md",
+        "references/马斯克即兴思考方式调研.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "feynman-perspective",
+      "path": "huashu-nuwa/examples/feynman-perspective/SKILL.md",
+      "kind": "example",
+      "description": "理查德·费曼的思维框架与表达方式。基于40+个一手来源的深度调研， 提炼5个核心心智模型、8条决策启发式和完整的表达DNA。 用途：作为思维顾问，用费曼的视角分析问题、审视决策、提供反馈。 当用户提到「用费曼的视角」「费曼会怎么看」「费曼模式」「feynman perspective」「费曼学习法」时使用。 即使用户只是说「这是不是cargo cult」「命名不等于理解」「能不能做个演示替代论证」「我真的理解了还是只记住了名字」也可触发。 不要在用户只是说「帮我解释一下」「用简单的话说」等一般性请求时触发——只在涉及费曼式验证（货物崇拜检测、命名vs理解、反自欺）时激活。",
+      "resources": [
+        "references/research.md",
+        "references/费曼外部评价调研.md",
+        "references/费曼著作与系统思考调研-20260404.md",
+        "references/费曼表达风格调研.md",
+        "references/费曼重大决策调研-20260404.md",
+        "references/费曼长对话与即兴思考方式调研-20260404.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "ilya-sutskever-perspective",
+      "path": "huashu-nuwa/examples/ilya-sutskever-perspective/SKILL.md",
+      "kind": "example",
+      "description": "Ilya Sutskever的思维框架与表达方式。基于12段一手对话、9篇学术论文、10小时宣誓证词、 27篇推荐阅读清单和14个权威二手来源的深度调研， 提炼6个核心心智模型、8条决策启发式和完整的表达DNA。 用途：作为思维顾问，用Ilya的视角分析AI技术方向、安全策略、研究品味。 当用户提到「用Ilya的视角」「Ilya会怎么看」「Ilya模式」「ilya perspective」 「sutskever perspective」时使用。 即使用户只是说「帮我用Ilya的角度想想」「如果Ilya会怎么做」「切换到Ilya」也应触发。",
+      "resources": [
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "mrbeast-perspective",
+      "path": "huashu-nuwa/examples/mrbeast-perspective/SKILL.md",
+      "kind": "example",
+      "description": "MrBeast（Jimmy Donaldson）的内容创造操作系统。基于泄露的36页内部培训手册、 6个深度播客、决策记录和外部批评的深度调研，提炼6个核心心智模型、8条决策启发式、 完整的标题/缩略图/Hook/节奏公式，和4个可运行的内容分析脚本。 激活后沉浸式扮演MrBeast，直接以「我」的视角给出内容创作建议。 当用户提到「用MrBeast的视角」「MrBeast会怎么做」「Beast模式」「mrbeast perspective」时使用。 即使用户只是说「视频CTR怎么提升」「标题不够吸引人」「retention曲线怎么优化」「缩略图要改吗」也应触发。 不要在用户只是说「内容创作建议」「怎么做内容」等一般性问题时触发——只在涉及视频优化、标题/缩略图/Hook/留存率等YouTube方法论时激活。",
+      "resources": [
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md",
+        "scripts/analyze_titles.py",
+        "scripts/fetch_youtube_subtitles.sh",
+        "scripts/retention_curve_checker.py",
+        "scripts/thumbnail_audit.py"
+      ],
+      "externalDependencies": [
+        "python3（scripts/）",
+        "yt-dlp（fetch_youtube_subtitles.sh）"
+      ]
+    },
+    {
+      "name": "munger-perspective",
+      "path": "huashu-nuwa/examples/munger-perspective/SKILL.md",
+      "kind": "example",
+      "description": "查理·芒格的思维框架与表达方式。基于《穷查理宝典》、伯克希尔/Daily Journal股东会、 USC/哈佛演讲、访谈记录、外部批评等50+来源的深度调研， 提炼5个核心心智模型、8条决策启发式和完整的表达DNA。 用途：作为思维顾问，用芒格的视角分析问题、审视决策、提供反馈。 当用户提到「用芒格的视角」「芒格会怎么看」「芒格模式」「munger perspective」时使用。 也适用于：投资决策审视、认知偏误检查、跨学科思考训练、逆向思考练习。 即使用户只是说「逆向思考一下」「这有什么认知偏误」「Lollapalooza效应」「能力圈之外」「激励结构是什么」也可触发。 不要在用户只是问「这个决策靠谱吗」「帮我找盲点」等一般性问题时触发——只在涉及逆向思考、认知偏误、跨学科分析等芒格核心方法论时激活。",
+      "resources": [
+        "references/25-biases.md",
+        "references/research.md",
+        "references/查理芒格思想体系深度调研-20260404.md",
+        "references/芒格表达风格DNA分析.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "naval-perspective",
+      "path": "huashu-nuwa/examples/naval-perspective/SKILL.md",
+      "kind": "example",
+      "description": "Naval Ravikant的思维操作系统。基于著作、播客、推文、决策记录和外部批评的深度调研， 提炼5个核心心智模型、8条决策启发式和完整的表达DNA。 激活后沉浸式扮演Naval，直接以「我」的视角回应问题。 当用户提到「用Naval的视角」「Naval会怎么看」「纳瓦尔模式」「Naval perspective」「切换到Naval」时使用。 即使用户只是说「这份工作有杠杆吗」「什么是specific knowledge」「什么是真正的财富」「欲望太多怎么办」「无需许可的路径」也可触发。 不要在用户只是问「我该怎么选择」「帮我想清楚」等一般性决策问题时触发——只在涉及杠杆/特定知识/欲望管理/财富定义等Naval核心概念时激活。",
+      "resources": [
+        "references/naval-agent2-conversations.md",
+        "references/naval-agent3-expression-dna.md",
+        "references/naval-ravikant-agent1-著作与系统思考.md",
+        "references/quality-validation.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "paul-graham-perspective",
+      "path": "huashu-nuwa/examples/paul-graham-perspective/SKILL.md",
+      "kind": "example",
+      "description": "Paul Graham的思维框架与表达方式。基于200+篇essays、12个播客/访谈、 Twitter/X分析、7位核心批评者视角和完整人生时间线的深度调研， 提炼5个核心心智模型、8条决策启发式和完整的表达DNA。 用途：作为思维顾问，用PG的视角分析创业、写作、产品和人生选择。 当用户提到「用PG的视角」「Paul Graham会怎么看」「PG模式」「paul graham perspective」时使用。 即使用户只是说「帮我用PG的角度想想」「如果PG会怎么做」「切换到PG」也应触发。",
+      "resources": [
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "steve-jobs-perspective",
+      "path": "huashu-nuwa/examples/steve-jobs-perspective/SKILL.md",
+      "kind": "example",
+      "description": "史蒂夫·乔布斯(Steve Jobs)的思维框架与表达方式。基于Isaacson授权传记、Stanford演讲、 Lost Interview、D Conference系列、Make Something Wonderful、30+一手来源的深度调研， 提炼6个核心心智模型、8条决策启发式和完整的表达DNA。 用途：作为思维顾问，用乔布斯的视角分析产品、审视决策、提供反馈。 当用户提到「用乔布斯的视角」「乔布斯会怎么看」「Jobs模式」「steve jobs perspective」时使用。 即使用户只是说「帮我用乔布斯的角度想想」「如果乔布斯会怎么做」「切换到乔布斯」也应触发。",
+      "resources": [
+        "references/demo-conversation-2026-04-05.md",
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "sun-yuchen-perspective",
+      "path": "huashu-nuwa/examples/sun-yuchen-perspective/SKILL.md",
+      "kind": "example",
+      "description": "孙宇晨（Justin Sun / 孙割）的思维框架与行为逻辑。基于6个维度（著作、深度采访、表达DNA、 他者视角、决策记录、时间线）共1500+行调研素材的深度蒸馏， 提炼6个核心心智模型、8条决策启发式、5种割味造句公式和完整的表达DNA。 用途：作为思维顾问，用孙宇晨的视角分析营销策略、注意力经济、危机公关、叙事操控、蹭热点方法论。 割味十足的角色扮演——自大、暴论、碰瓷、数字轰炸、成功学底色。 当用户提到「用孙宇晨的视角」「孙割会怎么做」「孙宇晨模式」「Justin Sun perspective」「割神」时使用。 即使用户只是说「帮我用孙割的角度想想」「如果孙宇晨会怎么操作」「切换到割神」「用割的视角」也应触发。",
+      "resources": [
+        "README.md",
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "taleb-perspective",
+      "path": "huashu-nuwa/examples/taleb-perspective/SKILL.md",
+      "kind": "example",
+      "description": "塔勒布(Nassim Nicholas Taleb)的思维框架与表达方式。基于40+个来源的深度调研， 提炼6个核心心智模型、9条决策启发式和完整的表达DNA。 用途：作为思维顾问，用塔勒布的视角分析问题、审视决策、质疑主流叙事。 当用户提到「用塔勒布的视角」「塔勒布会怎么看」「塔勒布模式」「反脆弱视角」「taleb perspective」时使用。 即使用户只是说「会不会黑天鹅」「这个有尾部风险吗」「skin in the game」「有没有反脆弱的方法」「杠铃策略怎么用」也可触发。 不要在用户只是做一般风险评估或问「靠不靠谱」时触发——只在涉及极端风险、反脆弱、预防原则等塔勒布核心概念时激活。",
+      "resources": [
+        "references/research.md",
+        "references/塔勒布外部批评调研.md",
+        "references/塔勒布思想体系调研.md",
+        "references/塔勒布深度对话调研.md",
+        "references/塔勒布碎片表达与社交媒体人格调研.md",
+        "references/塔勒布重大决策与实际行动调研-20260404.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "trump-perspective",
+      "path": "huashu-nuwa/examples/trump-perspective/SKILL.md",
+      "kind": "example",
+      "description": "唐纳德·特朗普（Donald Trump）的思维框架与行为逻辑。基于著作、长访谈、辩论、 心理分析、前幕僚回忆录、重大决策记录共6个维度的深度调研（320KB+原始资料）， 提炼6个核心心智模型、8条决策启发式和完整的表达DNA。 用途：（1）思维顾问——用特朗普视角分析谈判、权力、传播问题； （2）行为预判——解读他的公开行为背后的逻辑，预判下一步动作； （3）角色扮演——模拟特朗普在特定场景下的决策和表达。 当用户提到「用懂王视角」「特朗普会怎么看」「懂王逻辑」「trump perspective」 「懂王会怎么做」「从特朗普角度分析」「预测特朗普」时触发。",
+      "resources": [
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "x-mastery-mentor",
+      "path": "huashu-nuwa/examples/x-mastery-mentor/SKILL.md",
+      "kind": "example",
+      "description": "$10K/hr级X/Twitter运营导师。基于Nicolas Cole、Dickie Bush、Sahil Bloom、Justin Welsh、 Dan Koe、Alex Hormozi六位顶级创作者的方法论 + X开源算法深度分析 + AI/科技赛道专精策略， 提炼6个核心心智模型、10条决策启发式、完整的选题-写作-增长操作手册。 通用方法论为底座，AI/科技赛道为专精。 当用户提到「X运营」「推特」「Twitter」「怎么写推文」「怎么涨粉」「X策略」「推特选题」「tweet」「thread」「X算法」时使用。 即使用户只是说「这条推文怎么写」「帮我想个X内容」「推特增长」「发推」「write a tweet」「X account」「grow on X」也应触发。",
+      "resources": [
+        "references/algorithm-niche.md",
+        "references/growth-monetization.md",
+        "references/mental-models-heuristics.md",
+        "references/quality-analytics.md",
+        "references/research/01-writing-methods.md",
+        "references/research/02-growth-engines.md",
+        "references/research/03-content-brand.md",
+        "references/research/04-platform-mechanics.md",
+        "references/research/05-ai-tech-niche.md",
+        "references/research/06-cases-antipatterns.md",
+        "references/writing-workshop.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "zhang-yiming-perspective",
+      "path": "huashu-nuwa/examples/zhang-yiming-perspective/SKILL.md",
+      "kind": "example",
+      "description": "张一鸣（字节跳动/TikTok创始人）的思维框架与表达方式。基于6个维度（著作、深度访谈、 表达DNA、他者视角、决策记录、时间线）的调研，涵盖32个访谈片段、12个重大决策案例， 提炼5个核心心智模型、7条决策启发式和完整的表达DNA。 用途：作为思维顾问，用张一鸣的视角分析产品、组织、全球化、人才和个人成长问题。 当用户提到「用张一鸣的视角」「张一鸣会怎么看」「一鸣的思路」「zhang yiming perspective」时使用。 即使用户只是说「帮我用张一鸣的角度想想」「如果是字节会怎么做」「切换到张一鸣」也应触发。 即使用户说「字节怎么看」「头条的逻辑」「一鸣怎么选择」「一鸣」也应触发。",
+      "resources": [
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "zhangxuefeng-perspective",
+      "path": "huashu-nuwa/examples/zhangxuefeng-perspective/SKILL.md",
+      "kind": "example",
+      "description": "张雪峰的思维框架与表达方式。基于5本著作、15+篇权威媒体深度采访、 30+条一手语录、11个关键决策记录和完整人生时间线的深度调研， 提炼5个核心心智模型、8条决策启发式和完整的表达DNA。 用途：作为思维顾问，用张雪峰的视角分析教育选择、职业规划、阶层流动等问题。 当用户提到「用张雪峰的视角」「张雪峰会怎么看」「张雪峰模式」「雪峰视角」时使用。 即使用户只是说「帮我用张雪峰的角度想想」「如果张雪峰会怎么说」「切换到张雪峰」也应触发。",
+      "resources": [
+        "references/research/01-writings.md",
+        "references/research/02-conversations.md",
+        "references/research/03-expression-dna.md",
+        "references/research/04-external-views.md",
+        "references/research/05-decisions.md",
+        "references/research/06-timeline.md"
+      ],
+      "externalDependencies": []
+    },
+    {
+      "name": "huashu-nuwa",
+      "path": "huashu-nuwa/SKILL.md",
+      "kind": "core",
+      "description": "女娲造人：输入人名/主题/甚至只是模糊需求，自动深度调研→思维框架提炼→生成可运行的人物Skill。 两种入口：(1)明确人名→直接蒸馏 (2)模糊需求→诊断推荐→再蒸馏。 触发词：「造skill」「蒸馏XX」「女娲」「造人」「XX的思维方式」「做个XX视角」「更新XX的skill」。 模糊需求也触发：「我想提升决策质量」「有没有一种思维方式能帮我...」「我需要一个思维顾问」。",
+      "resources": [
+        "6-agents-parallel.png",
+        "LICENSE",
+        "README.md",
+        "README_EN.md",
+        "README_ES.md",
+        "README_JA.md",
+        "README_KO.md",
+        "advisory-board.png",
+        "cover-distill-minds.png",
+        "examples/andrej-karpathy-perspective/SKILL.md",
+        "examples/andrej-karpathy-perspective/references/research/01-writings.md",
+        "examples/andrej-karpathy-perspective/references/research/02-conversations.md",
+        "examples/andrej-karpathy-perspective/references/research/03-expression-dna.md",
+        "examples/andrej-karpathy-perspective/references/research/04-external-views.md",
+        "examples/andrej-karpathy-perspective/references/research/05-decisions.md",
+        "examples/andrej-karpathy-perspective/references/research/06-timeline.md",
+        "examples/elon-musk-perspective/SKILL.md",
+        "examples/elon-musk-perspective/references/Elon-Musk-思想体系调研-20260404.md",
+        "examples/elon-musk-perspective/references/research.md",
+        "examples/elon-musk-perspective/references/马斯克决策模式与行为分析-20260404.md",
+        "examples/elon-musk-perspective/references/马斯克即兴思考方式调研.md",
+        "examples/feynman-perspective/SKILL.md",
+        "examples/feynman-perspective/references/research.md",
+        "examples/feynman-perspective/references/费曼外部评价调研.md",
+        "examples/feynman-perspective/references/费曼著作与系统思考调研-20260404.md",
+        "examples/feynman-perspective/references/费曼表达风格调研.md",
+        "examples/feynman-perspective/references/费曼重大决策调研-20260404.md",
+        "examples/feynman-perspective/references/费曼长对话与即兴思考方式调研-20260404.md",
+        "examples/ilya-sutskever-perspective/SKILL.md",
+        "examples/ilya-sutskever-perspective/references/research/01-writings.md",
+        "examples/ilya-sutskever-perspective/references/research/02-conversations.md",
+        "examples/ilya-sutskever-perspective/references/research/03-expression-dna.md",
+        "examples/ilya-sutskever-perspective/references/research/04-external-views.md",
+        "examples/ilya-sutskever-perspective/references/research/05-decisions.md",
+        "examples/ilya-sutskever-perspective/references/research/06-timeline.md",
+        "examples/mrbeast-perspective/SKILL.md",
+        "examples/mrbeast-perspective/references/research/02-conversations.md",
+        "examples/mrbeast-perspective/references/research/03-expression-dna.md",
+        "examples/mrbeast-perspective/references/research/04-external-views.md",
+        "examples/mrbeast-perspective/references/research/05-decisions.md",
+        "examples/mrbeast-perspective/references/research/06-timeline.md",
+        "examples/mrbeast-perspective/scripts/analyze_titles.py",
+        "examples/mrbeast-perspective/scripts/fetch_youtube_subtitles.sh",
+        "examples/mrbeast-perspective/scripts/retention_curve_checker.py",
+        "examples/mrbeast-perspective/scripts/thumbnail_audit.py",
+        "examples/munger-perspective/SKILL.md",
+        "examples/munger-perspective/references/25-biases.md",
+        "examples/munger-perspective/references/research.md",
+        "examples/munger-perspective/references/查理芒格思想体系深度调研-20260404.md",
+        "examples/munger-perspective/references/芒格表达风格DNA分析.md",
+        "examples/naval-perspective/SKILL.md",
+        "examples/naval-perspective/references/naval-agent2-conversations.md",
+        "examples/naval-perspective/references/naval-agent3-expression-dna.md",
+        "examples/naval-perspective/references/naval-ravikant-agent1-著作与系统思考.md",
+        "examples/naval-perspective/references/quality-validation.md",
+        "examples/paul-graham-perspective/SKILL.md",
+        "examples/paul-graham-perspective/references/research/01-writings.md",
+        "examples/paul-graham-perspective/references/research/02-conversations.md",
+        "examples/paul-graham-perspective/references/research/03-expression-dna.md",
+        "examples/paul-graham-perspective/references/research/04-external-views.md",
+        "examples/paul-graham-perspective/references/research/05-decisions.md",
+        "examples/paul-graham-perspective/references/research/06-timeline.md",
+        "examples/steve-jobs-perspective/SKILL.md",
+        "examples/steve-jobs-perspective/references/demo-conversation-2026-04-05.md",
+        "examples/steve-jobs-perspective/references/research/01-writings.md",
+        "examples/steve-jobs-perspective/references/research/02-conversations.md",
+        "examples/steve-jobs-perspective/references/research/03-expression-dna.md",
+        "examples/steve-jobs-perspective/references/research/04-external-views.md",
+        "examples/steve-jobs-perspective/references/research/05-decisions.md",
+        "examples/steve-jobs-perspective/references/research/06-timeline.md",
+        "examples/sun-yuchen-perspective/README.md",
+        "examples/sun-yuchen-perspective/SKILL.md",
+        "examples/sun-yuchen-perspective/references/research/01-writings.md",
+        "examples/sun-yuchen-perspective/references/research/02-conversations.md",
+        "examples/sun-yuchen-perspective/references/research/03-expression-dna.md",
+        "examples/sun-yuchen-perspective/references/research/04-external-views.md",
+        "examples/sun-yuchen-perspective/references/research/05-decisions.md",
+        "examples/sun-yuchen-perspective/references/research/06-timeline.md",
+        "examples/taleb-perspective/SKILL.md",
+        "examples/taleb-perspective/references/research.md",
+        "examples/taleb-perspective/references/塔勒布外部批评调研.md",
+        "examples/taleb-perspective/references/塔勒布思想体系调研.md",
+        "examples/taleb-perspective/references/塔勒布深度对话调研.md",
+        "examples/taleb-perspective/references/塔勒布碎片表达与社交媒体人格调研.md",
+        "examples/taleb-perspective/references/塔勒布重大决策与实际行动调研-20260404.md",
+        "examples/trump-perspective/SKILL.md",
+        "examples/trump-perspective/references/research/01-writings.md",
+        "examples/trump-perspective/references/research/02-conversations.md",
+        "examples/trump-perspective/references/research/03-expression-dna.md",
+        "examples/trump-perspective/references/research/04-external-views.md",
+        "examples/trump-perspective/references/research/05-decisions.md",
+        "examples/trump-perspective/references/research/06-timeline.md",
+        "examples/x-mastery-mentor/SKILL.md",
+        "examples/x-mastery-mentor/references/algorithm-niche.md",
+        "examples/x-mastery-mentor/references/growth-monetization.md",
+        "examples/x-mastery-mentor/references/mental-models-heuristics.md",
+        "examples/x-mastery-mentor/references/quality-analytics.md",
+        "examples/x-mastery-mentor/references/research/01-writing-methods.md",
+        "examples/x-mastery-mentor/references/research/02-growth-engines.md",
+        "examples/x-mastery-mentor/references/research/03-content-brand.md",
+        "examples/x-mastery-mentor/references/research/04-platform-mechanics.md",
+        "examples/x-mastery-mentor/references/research/05-ai-tech-niche.md",
+        "examples/x-mastery-mentor/references/research/06-cases-antipatterns.md",
+        "examples/x-mastery-mentor/references/writing-workshop.md",
+        "examples/zhang-yiming-perspective/SKILL.md",
+        "examples/zhang-yiming-perspective/references/research/01-writings.md",
+        "examples/zhang-yiming-perspective/references/research/02-conversations.md",
+        "examples/zhang-yiming-perspective/references/research/03-expression-dna.md",
+        "examples/zhang-yiming-perspective/references/research/04-external-views.md",
+        "examples/zhang-yiming-perspective/references/research/05-decisions.md",
+        "examples/zhang-yiming-perspective/references/research/06-timeline.md",
+        "examples/zhangxuefeng-perspective/SKILL.md",
+        "examples/zhangxuefeng-perspective/references/research/01-writings.md",
+        "examples/zhangxuefeng-perspective/references/research/02-conversations.md",
+        "examples/zhangxuefeng-perspective/references/research/03-expression-dna.md",
+        "examples/zhangxuefeng-perspective/references/research/04-external-views.md",
+        "examples/zhangxuefeng-perspective/references/research/05-decisions.md",
+        "examples/zhangxuefeng-perspective/references/research/06-timeline.md",
+        "references/extraction-framework.md",
+        "references/skill-template.md",
+        "scripts/download_subtitles.sh",
+        "scripts/merge_research.py",
+        "scripts/quality_check.py",
+        "scripts/srt_to_transcript.py",
+        "wechat-qrcode.jpg",
+        "x-thread-en.md"
+      ],
+      "externalDependencies": [
+        "yt-dlp（download_subtitles.sh）",
+        "python3"
+      ],
+      "relations": [
+        {
+          "type": "generates",
+          "target": "examples:*",
+          "note": "examples/ 下 15 个成品视角技能均为女娲蒸馏产物；新蒸馏的 skill 写入 ${DSH_SKILLS_DIR}"
+        }
+      ]
+    },
+    {
+      "name": "hypothesis-thinking",
+      "path": "hypothesis-thinking/SKILL.md",
+      "kind": "core",
+      "description": "结构化思维框架。当需要对不确定问题形成判断、追踪证据、更新置信度，或按 runId/hypothesisId/asOf 审查既有 question/claim/belief/signal 时触发。适用于投资研究、产品决策、技术选型等假说驱动场景。",
+      "externalDependencies": [
+        "finance_graph / research_graph_query（宿主图谱只读与原子写入接口）"
+      ],
+      "relations": [
+        {
+          "type": "reads",
+          "target": "shared:_investment-philosophy.md",
+          "note": "§3 证据可靠性分级"
+        }
+      ]
+    },
+    {
+      "name": "knowledge-compiler",
+      "path": "knowledge-compiler/SKILL.md",
+      "kind": "core",
+      "description": "将已入库、ready 且未越过时间门的 source/raw 编译为可继续研究的问题图谱。输入 runId/sourceIds/asOf，逐个读取真实原文和 locator，按证据可支持度生成 question、适用时的 claimType=hypothesis claim，以及适用时的 belief/signal，并用一次原子 finance_graph plan 提交；不生成最终研究报告。",
+      "externalDependencies": [
+        "当前真实 DSH Session（唯一模型运行时）",
+        "finance_graph（宿主图谱接口）"
+      ],
+      "relations": [
+        {
+          "type": "requires",
+          "target": "finance-source-ingest",
+          "note": "只读取已入库 ready source/raw"
+        },
+        {
+          "type": "suggests",
+          "target": "research",
+          "note": "编译不是报告，由用户另选研究流程"
+        },
+        {
+          "type": "suggests",
+          "target": "deep-research",
+          "note": "编译不是报告，由用户另选深挖流程"
+        }
+      ]
+    },
+    {
+      "name": "planning-with-files",
+      "path": "planning-with-files/SKILL.md",
+      "kind": "core",
+      "description": "Implements Manus-style file-based planning to organize and track progress on complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when asked to plan out, break down, or organize a multi-step project, research task, or any work requiring >5 tool calls. Supports file-based session recovery across context resets.",
+      "resources": [
+        "examples.md",
+        "reference.md",
+        "scripts/check-complete.ps1",
+        "scripts/check-complete.sh",
+        "scripts/init-session.ps1",
+        "scripts/init-session.sh",
+        "scripts/session-catchup.py",
+        "templates/findings.md",
+        "templates/progress.md",
+        "templates/task_plan.md"
+      ],
+      "externalDependencies": [
+        "python3（session-catchup.py 仅 Claude Code 可用，DSH 下无效）"
+      ]
+    },
+    {
+      "name": "portfolio-allocation",
+      "path": "portfolio-allocation/SKILL.md",
+      "kind": "core",
+      "description": "Use for portfolio snapshot, allocation exposure and valuation scenario research. Uses finance_market_data, finance_model portfolio/dcf/comps and research_graph_*; never places orders or fabricates unsupported backtests.",
+      "externalDependencies": [
+        "公开金融数据 provider（由宿主只读 finance_* 实际配置）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "uses",
+          "target": "research",
+          "note": "个股研究"
+        },
+        {
+          "type": "uses",
+          "target": "valuation-model",
+          "note": "估值情景只引用完整模型结果"
+        },
+        {
+          "type": "uses",
+          "target": "portfolio-weekly",
+          "note": "持续组合复核"
+        },
+        {
+          "type": "uses",
+          "target": "flex-memory",
+          "note": "预测校准与复盘"
+        },
+        {
+          "type": "reads",
+          "target": "shared:_investment-philosophy.md",
+          "note": "§1 Alpha 衰减速度→复核周期"
+        }
+      ]
+    },
+    {
+      "name": "portfolio-weekly",
+      "path": "portfolio-weekly/SKILL.md",
+      "kind": "core",
+      "description": "每周组合复核与风险暴露报告。用于持仓快照、集中度、估值/催化变化、预测校准和论文漂移；输出图谱 deliverable，仅研究建议，不连接账户或下单。",
+      "externalDependencies": [
+        "公开行情 provider（由宿主只读 finance_* 实际配置）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "uses",
+          "target": "catalyst-calendar",
+          "note": "事件与 prediction 到期结算"
+        },
+        {
+          "type": "uses",
+          "target": "equity-earnings",
+          "note": "财报周复核"
+        },
+        {
+          "type": "uses",
+          "target": "thesis-drift",
+          "note": "持仓论文漂移"
+        },
+        {
+          "type": "uses",
+          "target": "flex-memory",
+          "note": "预测校准"
+        }
+      ]
+    },
+    {
+      "name": "product-review",
+      "path": "product-review/SKILL.md",
+      "kind": "core",
+      "description": "Use when asked to review, audit, or evaluate a web application's UX, AI features, visual design, or interaction quality. Also use when the user says review, test, evaluate product, or wants PM-style feedback on their app.",
+      "resources": [
+        "report-template.md"
+      ],
+      "externalDependencies": [
+        "Playwright + headless Chromium",
+        "被测应用需已启动"
+      ]
+    },
+    {
+      "name": "report-digest",
+      "path": "report-digest/SKILL.md",
+      "kind": "core",
+      "description": "研报/纪要/会议记录摘要。当用户上传研报或要求\"帮我看看 / 总结一下 / 读一下这份报告\"时触发。不分析公司基本面 — 那是 research skill 的事。",
+      "externalDependencies": [],
+      "relations": [
+        {
+          "type": "reads",
+          "target": "shared:_investment-philosophy.md",
+          "note": "§3 信任锚分级"
+        },
+        {
+          "type": "alternative-to",
+          "target": "research",
+          "note": "摘要场景，不做基本面分析"
+        }
+      ]
+    },
+    {
+      "name": "research",
+      "path": "research/SKILL.md",
+      "kind": "core",
+      "description": "投研深度分析。双 mode — Ticker（某只股票 FEV 三层 + DCF + R:R）/ Question（围绕研究命题的多维度深挖）。默认使用 finance_* 与 research_graph_*，产出可审计图谱 deliverable。",
+      "resources": [
+        "reference/business-model.md",
+        "reference/dimension-templates.md",
+        "reference/evaluator.md",
+        "reference/notion-output.md",
+        "reference/question-mode.md",
+        "reference/tools.md",
+        "reference/valuation.md"
+      ],
+      "externalDependencies": [
+        "公开金融数据 provider（由宿主只读 finance_* 实际配置）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "reads",
+          "target": "shared:_investment-philosophy.md",
+          "note": "§1-§3 投资哲学 / 信任分级"
+        },
+        {
+          "type": "uses",
+          "target": "finance-source-ingest",
+          "note": "公开材料先入图谱证据链"
+        },
+        {
+          "type": "uses",
+          "target": "knowledge-compiler",
+          "note": "可消费编译假说，最终报告由用户显式选择后生成"
+        },
+        {
+          "type": "uses",
+          "target": "financial-data-rigor",
+          "note": "关键数字归一化与交叉验证"
+        },
+        {
+          "type": "uses",
+          "target": "valuation-model",
+          "note": "唯一确定性估值路径"
+        },
+        {
+          "type": "suggests",
+          "target": "deep-research",
+          "note": "基础稿完成后由用户决定是否深挖"
+        },
+        {
+          "type": "suggests",
+          "target": "report-digest",
+          "note": "只需摘要而非完整分析时"
+        }
+      ]
+    },
+    {
+      "name": "thesis-drift",
+      "path": "thesis-drift/SKILL.md",
+      "kind": "core",
+      "description": "AI Berkshire skill: 投资论文漂移检测与既有假说审查：分清事实变化、证据变化与措辞变化。Source: skills/thesis-drift.md.",
+      "resources": [
+        "LICENSE"
+      ],
+      "externalDependencies": [
+        "finance_graph / research_graph_query（宿主图谱只读与原子写入接口）",
+        "finance_model（宿主确定性计算工具）"
+      ],
+      "relations": [
+        {
+          "type": "uses",
+          "target": "financial-data-rigor",
+          "note": "新旧快照的同口径核验"
+        },
+        {
+          "type": "uses",
+          "target": "valuation-model",
+          "note": "需要重新估值时完整重跑"
+        }
+      ]
+    },
+    {
+      "name": "valuation-model",
+      "path": "valuation-model/SKILL.md",
+      "kind": "core",
+      "description": "可复算的 DCF、反向 DCF 与可比公司估值。用于内在价值、三情景、WACC、敏感性和股权桥；所有计算只能由确定性 finance_model 执行并写入 valuation 图谱节点。",
+      "resources": [
+        "LICENSE",
+        "references/dcf-method.md"
+      ],
+      "externalDependencies": [
+        "finance_model（宿主确定性估值工具；不可用时不估值）"
+      ],
+      "relations": [
+        {
+          "type": "uses",
+          "target": "financial-data-rigor",
+          "note": "模型输入的时间与口径门"
+        },
+        {
+          "type": "reads",
+          "target": "finance-source-ingest",
+          "note": "证据卡与统一 metadata"
+        }
+      ]
+    },
+    {
+      "name": "video-deep-reader",
+      "path": "video-deep-reader/SKILL.md",
+      "kind": "core",
+      "description": "深读公开视频与播客 transcript，保留 segment 起止时间、说话人和原文引用，提取可核验 claim 并写入图谱。用于 earnings call、访谈、演讲和长视频，不另建 LLM client。",
+      "externalDependencies": [
+        "带 segment 时间戳的公开 transcript（用户提供或宿主已有只读能力）"
+      ],
+      "relations": [
+        {
+          "type": "uses",
+          "target": "finance-source-ingest",
+          "note": "统一证据卡与时间门"
+        },
+        {
+          "type": "uses",
+          "target": "financial-data-rigor",
+          "note": "视频金融数字需外部原始披露复核"
+        }
+      ]
+    },
+    {
+      "name": "virtual-fund",
+      "path": "virtual-fund/SKILL.md",
+      "kind": "core",
+      "description": "创建并持续运营独立的 AI 虚拟基金：通过对话设定投研工位、研究风格、覆盖标的与 DSH 定时覆盖，使用 finance_virtual_fund 保存研究员、模拟持仓和不可覆盖的净值历史。仅纸面模拟，不连接真实交易账户。",
+      "externalDependencies": [
+        "finance_virtual_fund（宿主持久化模拟账本）",
+        "DSH 原生 schedule_*（可选，实际可用后开启）",
+        "公开数据来源与历史可用时间"
+      ]
+    },
+    {
+      "name": "visualizer",
+      "path": "visualizer/SKILL.md",
+      "kind": "core",
+      "description": "Turn an existing research report into a standalone HTML visual plus a Markdown-native summary for DSH, while preserving the original report and explicit Obsidian output mode.",
+      "resources": [
+        "references/design-system.md"
+      ],
+      "externalDependencies": [
+        "DSH 原生 HTML/Markdown 预览（默认）",
+        "Obsidian（仅显式选择时使用）"
+      ],
+      "relations": [
+        {
+          "type": "consumes",
+          "target": "research",
+          "note": "可视化 research / deep-research 产出的报告"
+        }
+      ]
+    },
+    {
+      "name": "wiki-think",
+      "path": "wiki-think/SKILL.md",
+      "kind": "core",
+      "description": "投研思考引擎，两种图谱模式。编织：调用 knowledge-compiler 把 ready source/raw 提炼成问题和假说。审视：围绕已有 signal/claim 主动寻找支持与反证、检查可靠性独立性并更新假说。触发词：编译知识 / think loop / 处理 raw / 审视 / 验证 signal。",
+      "resources": [
+        "reference/reflect-standard.md",
+        "reference/signal-standard.md",
+        "reference/source-standard.md"
+      ],
+      "externalDependencies": [
+        "finance_graph（宿主图谱接口）",
+        "公开来源读取能力（宿主已有网页/只读 finance_*）"
+      ],
+      "relations": [
+        {
+          "type": "reads",
+          "target": "shared:_investment-philosophy.md",
+          "note": "判断投资哲学"
+        },
+        {
+          "type": "uses",
+          "target": "knowledge-compiler",
+          "note": "编织模式统一走图谱知识编译"
+        }
+      ]
+    }
+  ],
+  "sharedReferences": [
+    {
+      "path": "_investment-philosophy.md",
+      "kind": "shared-reference",
+      "note": "无 frontmatter，不作为技能注册；各 skill 经相对路径显式 Read。",
+      "usedBy": [
+        "deep-research",
+        "hypothesis-thinking",
+        "portfolio-allocation",
+        "report-digest",
+        "research",
+        "wiki-think"
+      ],
+      "sections": {
+        "§1": "三种 Alpha 来源（含衰减特征）",
+        "§2": "信号检测",
+        "§3": "信任锚分级",
+        "§4": "历史预测偏差（复盘回填）",
+        "§7": "报告质量哲学"
+      }
+    }
+  ]
+}

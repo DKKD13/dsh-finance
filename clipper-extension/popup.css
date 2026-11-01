@@ -1,0 +1,25 @@
+:root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; }
+body { width: 380px; margin: 0; background: Canvas; color: CanvasText; }
+main { padding: 16px; }
+header { margin-bottom: 14px; }
+h1 { margin: 0; font-size: 17px; }
+header p, .hint { margin: 4px 0 0; color: GrayText; line-height: 1.45; }
+form { display: grid; gap: 10px; }
+label { display: grid; gap: 4px; color: GrayText; font-size: 11px; }
+input, textarea, button { font: inherit; }
+input, textarea { width: 100%; box-sizing: border-box; padding: 7px 8px; border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 6px; background: Canvas; color: CanvasText; }
+textarea { resize: vertical; }
+input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+button { min-height: 34px; border: 1px solid transparent; border-radius: 6px; background: Highlight; color: HighlightText; cursor: pointer; }
+button.secondary { border-color: color-mix(in srgb, CanvasText 20%, transparent); background: Canvas; color: CanvasText; }
+button:disabled { opacity: .5; cursor: default; }
+#status { min-height: 20px; margin: 10px 0; overflow-wrap: anywhere; }
+#status[data-error] { color: #c73535; }
+h2 { margin: 16px 0 6px; font-size: 12px; }
+#recent { list-style: none; margin: 0; padding: 0; }
+#recent li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 0; border-top: 1px solid color-mix(in srgb, CanvasText 12%, transparent); }
+#recent strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#recent time, #recent small { color: GrayText; font-size: 10px; }
+#recent small { grid-column: 1 / -1; overflow-wrap: anywhere; }

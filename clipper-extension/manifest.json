@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "DSH Local Clipper",
+  "version": "1.0.0",
+  "description": "Clean-room page and selection capture into a loopback DSH research graph.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "http://[::1]/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Clip to DSH",
+    "default_popup": "popup.html"
+  }
+}

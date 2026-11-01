@@ -1,0 +1,111 @@
+{
+  "name": "dsh-research-graph",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first finance research workspace for DeepSeek Harness: evidence library, research Skills, stock analysis and paper-fund research desks.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": "./dist/client.js",
+    "./protocol": {
+      "types": "./dist/types/protocol.d.ts",
+      "default": "./dist/protocol.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/client.js",
+    "dist/protocol.js",
+    "dist/**/*.js",
+    "dist/clipper/**",
+    "dist/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "skills/**",
+    "licenses/**",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/**",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/build-client.mjs && node scripts/build-clipper.mjs",
+    "build:client": "node scripts/build-client.mjs",
+    "build:clipper": "node scripts/build-clipper.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "test": "vitest run && node --test \"tests/skills/*.test.mjs\""
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "mammoth": "1.13.0",
+    "pdfjs-dist": "5.4.149"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-commands": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.5"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-commands": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "esbuild": "^0.21.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.1 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-api-workspace-controller"
+      ],
+      "external": [
+        "react",
+        "react/jsx-runtime",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DKKD13/dsh-finance.git"
+  },
+  "homepage": "https://github.com/DKKD13/dsh-finance#readme",
+  "bugs": {
+    "url": "https://github.com/DKKD13/dsh-finance/issues"
+  },
+  "author": "DKKD13"
+}

@@ -1,0 +1,16 @@
+node_modules
+dist/
+.verification/
+.runtime/
+run/
+reports/
+private/
+.env
+.env.*
+!.env.example
+*.log
+*.tgz
+*.zip
+.DS_Store
+__pycache__/
+*.pyc

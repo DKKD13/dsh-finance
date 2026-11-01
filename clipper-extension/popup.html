@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DSH Local Clipper</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header><h1>Clip to DSH</h1><p>Capture this tab to your loopback research graph.</p></header>
+    <form id="settings">
+      <label>DSH endpoint<input id="endpoint" type="url" required placeholder="http://127.0.0.1:47643" autocomplete="off"></label>
+      <label>Access token<input id="token" type="password" required pattern="[A-Za-z0-9_-]{43}" placeholder="43-character Bearer token" autocomplete="off"></label>
+      <div class="pair">
+        <label>Topic<input id="topic" type="text" maxlength="160"></label>
+        <label>Tags<input id="tags" type="text" placeholder="finance, research" autocomplete="off"></label>
+      </div>
+      <label>Note<textarea id="note" rows="3" maxlength="4000"></textarea></label>
+      <div class="actions">
+        <button type="submit" data-mode="page">Clip page</button>
+        <button type="submit" data-mode="selection" class="secondary">Clip selection</button>
+      </div>
+      <p class="hint">Missing publication time stays missing; DSH may quarantine the clip instead of treating capture time as publication time.</p>
+    </form>
+    <p id="status" role="status" aria-live="polite"></p>
+    <section aria-labelledby="recent-title"><h2 id="recent-title">Recent imports</h2><ol id="recent"></ol></section>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

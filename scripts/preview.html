@@ -1,0 +1,233 @@
+<!doctype html>
+<!--
+  Dev-only preview harness for the client bundle (not shipped). Loads the real
+  dist/client.js against real graph/finance services with a temporary GraphStore
+  and a stub shell context. External provider responses are preview-only fixtures.
+  Query params: ?lang=zh|en (default zh), ?theme=light|dark (default light),
+  ?panel=<main key> (default research-graph; finance-* entries open their section).
+-->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsh-research-graph preview</title>
+<style>
+  /* Approximation of the shell's token layer (light/dark) for preview only. */
+  :root {
+    --dsw-static-neutral-bluish-00: rgb(255,255,255);
+    --dsw-static-neutral-bluish-50: rgb(249,250,251);
+    --dsw-static-neutral-bluish-100: rgb(235,238,242);
+    --dsw-static-neutral-bluish-300: rgb(207,211,214);
+    --dsw-static-neutral-bluish-400: rgb(173,178,184);
+    --dsw-static-neutral-bluish-600: rgb(129,133,140);
+    --dsw-static-neutral-bluish-700: rgb(97,102,107);
+    --dsw-static-neutral-bluish-750: rgb(67,69,74);
+    --dsw-static-neutral-bluish-800: rgb(53,54,56);
+    --dsw-static-neutral-bluish-850: rgb(44,44,46);
+    --dsw-static-neutral-bluish-875: rgb(35,35,36);
+    --dsw-static-neutral-bluish-950: rgb(21,21,23);
+    --dsw-static-neutral-bluish-1000: rgb(15,17,21);
+    --dsw-static-deepseek-300: rgb(183,200,254);
+    --dsw-static-deepseek-400: rgb(122,170,255);
+    --dsw-static-deepseek-500: rgb(65,118,230);
+    --dsw-static-blue-300: rgb(147,197,253);
+    --dsw-static-blue-400: rgb(96,165,250);
+    --dsw-static-blue-500: rgb(59,130,246);
+    --dsw-static-violet-300: rgb(196,181,253);
+    --dsw-static-violet-400: rgb(167,139,250);
+    --dsw-static-violet-500: rgb(139,92,246);
+    --dsw-static-green-500: rgb(34,197,94);
+    --dsw-static-green-700: rgb(21,110,61);
+    --dsw-static-amber-500: rgb(245,158,11);
+    --dsw-static-amber-700: rgb(180,117,15);
+    --dsw-static-red-400: rgb(242,90,90);
+    --dsw-static-red-500: rgb(239,68,68);
+    --dsw-static-red-600: rgb(236,19,19);
+    --dsw-static-neutral-400: rgb(156,163,175);
+    --dsw-static-neutral-500: rgb(107,114,128);
+    --dsw-radius-sm: 6px; --dsw-radius-md: 8px; --dsw-radius-lg: 12px;
+    --dsw-focus-ring-width: 2px;
+    --ds-font-family-code: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --dsh-font-family-text-default: -apple-system, "PingFang SC", "Segoe UI", sans-serif;
+  }
+  body {
+    --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-100);
+    --dsw-alias-bg-mask-2: rgba(0,0,0,0.12);
+    --dsw-alias-bg-multi-select: rgba(38,49,72,0.08);
+    --dsw-alias-bg-skeleton: rgba(0,0,0,0.04);
+    --dsw-alias-border-l1: rgba(0,0,0,0.04);
+    --dsw-alias-border-l2: rgba(0,0,0,0.1);
+    --dsw-alias-border-l3: rgba(0,0,0,0.12);
+    --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+    --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
+    --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-750);
+    --dsw-alias-interactive-bg-hover: rgba(38,49,72,0.06);
+    --dsw-alias-interactive-bg-hover-danger: rgba(236,19,19,0.08);
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+    --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+    --dsw-alias-label-primary-inverted: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+    --dsw-alias-state-error-primary: var(--dsw-static-red-600);
+    --dsw-alias-state-error-secondary: var(--dsw-static-red-400);
+    --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+    --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
+    --dsw-alias-toast-bg: var(--dsw-static-neutral-bluish-800);
+    --dsw-alias-toast-label: var(--dsw-static-neutral-bluish-00);
+  }
+  body[data-ds-dark-theme] {
+    --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+    --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
+    --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+    --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+    --dsw-alias-bg-mask-2: rgba(0,0,0,0.2);
+    --dsw-alias-bg-multi-select: rgba(255,255,255,0.1);
+    --dsw-alias-bg-skeleton: rgba(255,255,255,0.08);
+    --dsw-alias-border-l1: rgba(255,255,255,0.06);
+    --dsw-alias-border-l2: rgba(255,255,255,0.12);
+    --dsw-alias-border-l3: rgba(255,255,255,0.16);
+    --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-100);
+    --dsw-alias-interactive-bg-hover: rgba(255,255,255,0.08);
+    --dsw-alias-interactive-bg-hover-danger: rgba(242,90,90,0.14);
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-label-primary-inverted: var(--dsw-static-neutral-bluish-800);
+    --dsw-alias-state-business-primary: var(--dsw-static-deepseek-400);
+    --dsw-alias-state-error-primary: var(--dsw-static-red-400);
+    --dsw-alias-toast-bg: var(--dsw-static-neutral-bluish-750);
+  }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--dsw-alias-bg-base); font-family: var(--dsh-font-family-text-default); }
+  #root { height: 100vh; }
+  .dsh-preview-markdown { max-width: 75ch; color: var(--dsw-alias-label-primary); font-size: 14px; line-height: 1.75; overflow-wrap: anywhere; }
+  .dsh-preview-markdown-compact { font-size: 13px; line-height: 1.6; }
+  .dsh-preview-markdown h1, .dsh-preview-markdown h2, .dsh-preview-markdown h3, .dsh-preview-markdown h4 { margin: 1.5em 0 .5em; line-height: 1.35; text-wrap: balance; }
+  .dsh-preview-markdown h1 { font-size: 24px; } .dsh-preview-markdown h2 { font-size: 19px; } .dsh-preview-markdown h3 { font-size: 16px; }
+  .dsh-preview-markdown p, .dsh-preview-markdown ul, .dsh-preview-markdown ol, .dsh-preview-markdown blockquote, .dsh-preview-markdown figure { margin: 0 0 1em; }
+  .dsh-preview-markdown a { color: var(--dsw-alias-state-business-primary); text-underline-offset: 3px; }
+  .dsh-preview-markdown blockquote { margin-inline: 0; padding: 4px 14px; border-inline-start: 2px solid var(--dsw-alias-border-l3); color: var(--dsw-alias-label-secondary); }
+  .dsh-preview-markdown :not(pre) > code { padding: 1px 4px; background: var(--dsw-alias-bg-layer-2); border-radius: var(--dsw-radius-sm); }
+  .dsh-preview-markdown-code { border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); overflow: hidden; background: var(--dsw-alias-bg-layer-2); }
+  .dsh-preview-markdown-code figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+  .dsh-preview-markdown-code-actions { display: flex; gap: 4px; }
+  .dsh-preview-markdown .dsh-preview-markdown-code-actions button { min-height: 28px; padding: 3px 8px; border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-secondary); }
+  .dsh-preview-markdown .dsh-preview-markdown-code-actions button:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+  .dsh-preview-markdown-code pre { max-width: 100%; margin: 0; padding: 12px; overflow: auto; white-space: pre; font-size: 12px; line-height: 1.6; }
+  .dsh-preview-markdown-code[data-wrapped] pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .dsh-preview-markdown-table-wrap { max-width: 100%; margin-bottom: 1em; overflow-x: auto; }
+  .dsh-preview-markdown table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 12px; }
+  .dsh-preview-markdown th, .dsh-preview-markdown td { padding: 7px 9px; border-bottom: 1px solid var(--dsw-alias-border-l2); text-align: start; vertical-align: top; }
+  .dsh-preview-markdown th { color: var(--dsw-alias-label-secondary); }
+  .dsh-preview-markdown-footnotes { margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--dsw-alias-border-l2); }
+  .dsh-preview-markdown-image-alt { color: var(--dsw-alias-label-tertiary); font-style: italic; }
+  .dsh-preview-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  @media (max-width: 480px) { .dsh-preview-markdown { font-size: 16px; } .dsh-preview-markdown-code figcaption { align-items: flex-start; flex-direction: column; } }
+</style>
+<script>
+  // The module-table sink must exist before dist/client.js executes.
+  const __registered = [];
+  window.__registered = __registered;
+  window.__ModuleLoader__ = { load(entry) { __registered.push(entry) } };
+</script>
+<script src="/node_modules/react/umd/react.production.min.js"></script>
+<script src="/node_modules/react-dom/umd/react-dom.production.min.js"></script>
+<script src="/dist/client.js"></script>
+<script type="module">
+  import { createPreviewPrimitives } from '/scripts/preview-primitives.mjs'
+
+  const params = new URLSearchParams(location.search)
+  const lang = params.get('lang') ?? 'zh'
+  if (params.get('theme') === 'dark') document.body.dataset.dsDarkTheme = ''
+
+  const entry = window.__registered[0]
+  const require_ = (spec) => {
+    if (spec === 'react') return window.React
+    if (spec === 'react/jsx-runtime') return {
+      Fragment: window.React.Fragment,
+      jsx: (type, props, key) => window.React.createElement(type, key === undefined ? props : { ...props, key }),
+      jsxs: (type, props, key) => window.React.createElement(type, key === undefined ? props : { ...props, key }),
+    }
+    if (spec === '@deepseek-ai/dsh-client-ui-primitives') return createPreviewPrimitives(window.React)
+    throw new Error(`unexpected require: ${spec}`)
+  }
+  const plugin = entry.factory(require_)
+
+  const dicts = {}
+  const mains = new Map()
+  const selectedPanel = params.get('panel') ?? 'research-graph'
+  const panelListeners = new Set()
+  const ctx = {
+    locale: {
+      register(ns, d) { dicts[ns] = d; return () => {} },
+      getLocale() { return { active: lang } },
+      subscribe() { return () => {} },
+      bind(ns) {
+        return (key, params) => {
+          const template = (dicts[ns]?.[lang] ?? dicts[ns]?.zh)?.[key] ?? key
+          if (!params) return template
+          return Object.entries(params).reduce((text, [k, v]) => text.replaceAll(`{${k}}`, String(v)), template)
+        }
+      },
+    },
+    layout: {
+      panelInfo: {
+        getSnapshot: () => ({ activePanelId: selectedPanel }),
+        subscribe(listener) {
+          panelListeners.add(listener)
+          return () => panelListeners.delete(listener)
+        },
+      },
+    },
+    slots: {
+      inject(name, register) { return register() },
+      register(options, component) {
+        if (options.name === 'main') mains.set(options.key, { options, component })
+        return () => {}
+      },
+    },
+    remote: {
+      commands: {
+        async execute(sessionId, line) {
+          const match = /^\/(research-graph|finance)\s+([\s\S]+)$/.exec(line)
+          if (!match) return { ok: true, value: undefined }
+          const http = await fetch(`/${match[1]}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: match[2],
+          })
+          const response = await http.json()
+          if (!response.ok) return { ok: true, value: { result: { kind: 'error', text: `${response.error.code}: ${response.error.message}` } } }
+          return { ok: true, value: { result: { kind: 'success', text: JSON.stringify(response, null, 2) } } }
+        },
+      },
+    },
+    sessions: {
+      list: { getSnapshot: () => ({ ids: ['preview-session'], byId: { 'preview-session': { id: 'preview-session', retainedBy: { mainView: 1 } } } }) },
+      async create() { return 'preview-session' },
+    },
+    on() {},
+    effect(fn) { fn() },
+  }
+  plugin.apply(ctx)
+
+  const main = mains.get(selectedPanel) ?? [...mains.values()][0]
+  if (main === undefined) throw new Error(`preview: no main panel for ${selectedPanel}`)
+  const { options, component: Page } = main
+  const injected = options.inject()
+  const t = ctx.locale.bind('researchGraph')
+  const root = window.ReactDOM.createRoot(document.getElementById('root'))
+  window.__preview = { mains, selectedPanel, root, t }
+  root.render(
+    window.React.createElement(Page, { t, ...injected }),
+  )
+</script>
+</head>
+<body>
+<div id="root"></div>
+</body>
+</html>
