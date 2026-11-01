@@ -93,10 +93,12 @@ SEC 需要配置 `secContact`；OpenBB 和 AlphaSift 需要你已有相应服务
 ```bash
 npm ci
 npm run typecheck
+npm run build
 npx vitest run --maxWorkers=1 --minWorkers=1
 node --test "tests/skills/*.test.mjs"
-npm run build
 ```
+
+完整测试需要 Google Chrome；默认使用 macOS 的标准安装路径，其他环境通过 `CHROME_BIN` 指定。浏览器回归测试需要先运行构建。
 
 无模型配置也可以查看隔离的示例工作台：
 
