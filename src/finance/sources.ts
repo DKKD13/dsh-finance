@@ -378,6 +378,8 @@ export class FinanceDataPlane {
     const result = chartResult(parseJson(payload.text, 'Yahoo'))
     const meta = record(result.meta) ?? {}
     if (kind === 'history') {
+      const start = request.start === undefined ? undefined : Date.parse(request.start)
+      const end = request.end === undefined ? undefined : Date.parse(request.end)
       const times = Array.isArray(result.timestamp) ? result.timestamp : []
       const indicators = record(result.indicators)
       const quote = record(Array.isArray(indicators?.quote) ? indicators.quote[0] : undefined) ?? {}
@@ -390,7 +392,9 @@ export class FinanceDataPlane {
         close: Array.isArray(quote.close) ? quote.close[index] ?? null : null,
         volume: Array.isArray(quote.volume) ? quote.volume[index] ?? null : null,
         adjustedClose: Array.isArray(adjusted.adjclose) ? adjusted.adjclose[index] ?? null : null,
-      })).filter(bar => bar.timestamp !== undefined)
+      })).filter(bar => bar.timestamp !== undefined
+        && (start === undefined || Date.parse(bar.timestamp) >= start)
+        && (end === undefined || Date.parse(bar.timestamp) < end))
       if (bars.length === 0) throw new GraphError('UNAVAILABLE', 'Yahoo history returned no timestamped bars')
       return structuredItem({
         provider: 'yahoo', canonicalUrl: payload.finalUrl, title: `${String(meta.symbol ?? symbol)} historical prices`,

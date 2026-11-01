@@ -172,6 +172,7 @@ export function LibraryPanel({ store, t, nodes, initialSelectedId, graphPhase, g
     .filter((node): node is GraphNode => node !== undefined && node.id !== active.id)
     .map(node => [node.id, node])).values()]
   const relations = libraryRelations(active, nodes, edges)
+  const visibleLineage = lineage.filter(node => !relations.some(relation => relation.peer?.id === node.id))
   const topic = related.capture === undefined
     ? related.source === undefined ? active === undefined ? undefined : libraryTopic(active) : libraryTopic(related.source)
     : libraryTopic(related.capture)
@@ -314,8 +315,8 @@ export function LibraryPanel({ store, t, nodes, initialSelectedId, graphPhase, g
                 </section>
                 <section className="rg-library-inspector-section">
                   <h4>{text('关系与引用', 'Relations & citations')}</h4>
-                  {relations.length === 0 && lineage.length === 0 ? <p className="rg-library-inspector-empty">—</p> : <ul className="rg-library-relations">
-                    {lineage.map(node => <li key={`lineage:${node.id}`}><button type="button" title={node.id} data-related-node-id={node.id} onClick={() => { openRelated(node) }}><LibraryNodeIcon kind={node.kind} /><span><strong>{node.title}</strong><small>{text('关联记录', 'Related record')} · {t(`kind.${node.kind}`)}</small></span></button></li>)}
+                  {relations.length === 0 && visibleLineage.length === 0 ? <p className="rg-library-inspector-empty">—</p> : <ul className="rg-library-relations">
+                    {visibleLineage.map(node => <li key={`lineage:${node.id}`}><button type="button" title={node.id} data-related-node-id={node.id} onClick={() => { openRelated(node) }}><LibraryNodeIcon kind={node.kind} /><span><strong>{node.title}</strong><small>{text('关联记录', 'Related record')} · {t(`kind.${node.kind}`)}</small></span></button></li>)}
                     {relations.map(relation => <li key={relation.edge.id}>{relation.peer === undefined
                       ? <div className="rg-library-relation-missing"><span><strong>{relation.peerId}</strong><small>{relationLabel(relation)} · {text('节点缺失', 'Missing node')}</small></span></div>
                       : <button type="button" title={relation.peer.id} data-related-node-id={relation.peer.id} onClick={() => { openRelated(relation.peer as GraphNode) }}><LibraryNodeIcon kind={relation.peer.kind} /><span><strong>{relation.peer.title}</strong><small>{relationLabel(relation)} · {t(`kind.${relation.peer.kind}`)}</small></span></button>}
