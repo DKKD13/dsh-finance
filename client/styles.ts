@@ -739,6 +739,9 @@ export const STYLE_TEXT = `
 .rg-chart-matrix-scroll { max-width: 100%; overflow-x: auto; }
 .rg-sensitivity-matrix { min-width: 520px; }
 .rg-sensitivity-cell { fill: var(--dsw-alias-brand-primary); stroke: var(--dsw-alias-border-l1); }
+.rg-sensitivity-cell[data-direction='positive'] { fill: var(--dsw-alias-state-success-primary); }
+.rg-sensitivity-cell[data-direction='negative'] { fill: var(--dsw-alias-state-error-primary); }
+.rg-scenario-reference { stroke: var(--dsw-alias-state-business-primary); stroke-width: 1.2; stroke-dasharray: 3 3; pointer-events: stroke; }
 .rg-sensitivity-matrix [role='button'] { cursor: pointer; }
 .rg-sensitivity-matrix [role='button']:hover .rg-sensitivity-cell, .rg-sensitivity-matrix [role='button']:focus-visible .rg-sensitivity-cell { stroke: var(--dsw-alias-brand-primary); stroke-width: 2; }
 .rg-sensitivity-matrix [role='button']:focus-visible { outline: none; }

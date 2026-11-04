@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { JsonObject } from '../../src/finance/types.ts'
+import type { JsonValue } from '../../src/graph.ts'
 import { financeOperation } from '../finance-store.ts'
-import { FinanceEmpty, JsonObjectForm, LazyDetails, NodeProvenance, nodeResult, OperationStatus, useFinance } from './FinanceCommon.tsx'
+import { asRecord, FinanceEmpty, JsonObjectForm, LazyDetails, NodeProvenance, nodeResult, operationResult, OperationStatus, useFinance } from './FinanceCommon.tsx'
 import type { FinancePanelProps } from './FinanceCommon.tsx'
 import { PortfolioResult, ValuationResult } from './FinanceData.tsx'
+import { storedQuoteEvidence } from './FinanceDiscovery.tsx'
+import type { StoredQuoteEvidence } from './FinanceDiscovery.tsx'
+import type { ScenarioReference } from './FinanceCharts.tsx'
 import { PortfolioEntryForm } from './PortfolioEntryForm.tsx'
 
 const metadata = { provider: '', asOf: '', availableAt: '', fetchedAt: '', provenance: {} }
@@ -72,20 +76,33 @@ export function PortfolioPanel({ store, t, nodes }: FinancePanelProps) {
   )
 }
 
+/** A saved quote may back a price reference only when it is the same currency as the valuation. */
+export function valuationPriceReference(value: unknown, quotes: ReadonlyMap<string, StoredQuoteEvidence>): ScenarioReference | undefined {
+  const result = asRecord(operationResult(value as JsonValue | null))
+  const instrument = asRecord(result?.instrument)
+  const symbol = typeof instrument?.symbol === 'string' && instrument.symbol.trim() !== '' ? instrument.symbol.toUpperCase() : null
+  const currency = typeof result?.currency === 'string' && result.currency.trim() !== '' ? result.currency.toUpperCase() : null
+  if (symbol === null || currency === null) return undefined
+  const quote = quotes.get(symbol)
+  if (quote === undefined || !(quote.price > 0) || (quote.currency?.toUpperCase() ?? null) !== currency) return undefined
+  return { price: quote.price, asOf: quote.asOf, provider: quote.provider }
+}
+
 export function ValuationsPanel({ store, t, nodes }: FinancePanelProps) {
   const state = useFinance(store)
   const operation = financeOperation(state, 'valuation')
   const valuations = nodes.filter(node => node.kind === 'valuation')
+  const quotes = useMemo(() => storedQuoteEvidence(nodes), [nodes])
   const [method, setMethod] = useState<'dcf' | 'comps'>('dcf')
   return (
     <section className="rg-finance-section" aria-labelledby="rg-finance-valuations-title">
       <div className="rg-finance-section-head"><div><h2 id="rg-finance-valuations-title">{t('finance.valuation.title')}</h2><p>{t('finance.valuation.description')}</p></div></div>
-      {operation.status === 'success' && <section className="rg-finance-block"><h3>{t('finance.latestResult')}</h3><ValuationResult value={operation.result} t={t} /></section>}
+      {operation.status === 'success' && <section className="rg-finance-block"><h3>{t('finance.latestResult')}</h3><ValuationResult value={operation.result} priceReference={valuationPriceReference(operation.result, quotes)} t={t} /></section>}
       <section className="rg-finance-block">
         <h3>{t('finance.valuation.saved')}</h3>
         {valuations.length === 0 ? <FinanceEmpty>{t('finance.valuation.empty')}</FinanceEmpty> : valuations.map(node => (
           <LazyDetails className="rg-finance-record" key={node.id} defaultOpen={valuations.length === 1} summary={<><span>{node.title}</span><code>{node.id}</code><NodeProvenance node={node} t={t} /></>}>
-            {() => <ValuationResult value={nodeResult(node)} provenanceValue={node.metadata} t={t} />}
+            {() => <ValuationResult value={nodeResult(node)} provenanceValue={node.metadata} priceReference={valuationPriceReference(nodeResult(node), quotes)} t={t} />}
           </LazyDetails>
         ))}
       </section>

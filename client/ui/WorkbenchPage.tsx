@@ -32,7 +32,7 @@ export function WorkbenchPage({ store, t, finance, research, conversations, titl
 
   // A conversation may have written new artifacts while this panel was away.
   useEffect(() => {
-    void store.load()
+    void store.loadIfChanged()
   }, [store])
 
   const counts = kindCounts(state.nodes)

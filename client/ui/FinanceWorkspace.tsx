@@ -63,7 +63,8 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
   readonly onOpenHistory?: (() => void) | undefined
 }) {
   const state = useFinance(store)
-  const readFundState = useCallback((fundId?: string) => store.readFundState(fundId), [store])
+  const readFundState = useCallback((fundId?: string, knownRevision?: number) => store.readFundState(fundId, knownRevision), [store])
+  const readSchedules = useCallback((sessionId: string) => store.readSchedules(sessionId), [store])
   const assetPage = state.section === 'market'
   const marketGroup = MARKET_SECTIONS.includes(state.section)
   const primarySection = marketGroup || state.section === 'market' ? 'markets' : state.section === 'apps' ? 'overview' : state.section === 'portfolio' ? 'virtual-fund' : state.section
@@ -139,7 +140,11 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
       if (result.status === 'preserved') store.flash(text('已保留原对话草稿。请在对话中继续。', 'The existing draft was preserved. Continue in the conversation.'))
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
-      store.flash(message === 'DSH_WORKSPACE_REQUIRED' ? text('请先在 DSH 添加一个工作区，再开始研究。', 'Add a workspace in DSH before starting research.') : message === 'CONVERSATION_BLOCKED' ? text('这个对话暂时不能接收输入，请稍后重试。', 'This conversation cannot receive input right now. Try again shortly.') : text('未能进入对话：', 'Could not open the conversation: ') + message)
+      store.flash(message === 'DSH_WORKSPACE_REQUIRED'
+        ? sessionId
+          ? text('原会话不可用，且当前没有可用工作区。请先在 DSH 添加工作区，再在新对话中保留原会话引用继续；尚未创建计划。', 'The original conversation is unavailable and no workspace is selected. Add a workspace to continue in a new conversation with the original reference. No schedule has been created.')
+          : text('请先在 DSH 添加一个工作区，再开始研究。', 'Add a workspace in DSH before starting research.')
+        : message === 'CONVERSATION_BLOCKED' ? text('这个对话暂时不能接收输入，请稍后重试。', 'This conversation cannot receive input right now. Try again shortly.') : text('未能进入对话：', 'Could not open the conversation: ') + message, 'error')
     } finally { launchPending.current = false }
   }
   const openResearch = (value: string, skillName?: string, skillContext?: Pick<ConversationSeed, 'ticker' | 'sourceIds' | 'asOf' | 'sourceSummaryId'>) => {
@@ -298,7 +303,7 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
         {state.phase === 'ready' && state.section === 'hypotheses' && (research !== undefined ? <HypothesesPanel research={research} t={t} nodes={nodes} edges={edges} graphPhase={graphPhase} graphError={graphError} onRefreshGraph={onRefreshGraph} onOpenGraph={onOpenGraph} onOpenReport={openReport} onOpenLibrary={() => { store.setSection('library') }} onResearch={openResearch} /> : <div className="rg-state" role="alert">{t('research.unavailable')}</div>)}
         {state.phase === 'ready' && state.section === 'reports' && (research !== undefined ? <ReportsPanel research={research} t={t} nodes={nodes} edges={edges} graphPhase={graphPhase} graphError={graphError} onRefreshGraph={onRefreshGraph} onOpenGraph={onOpenGraph} onOpenLibrary={openLibrary} onOpenBriefing={() => { store.setSection('briefing') }} conversations={conversations} onResearch={conversations ? seed => { void launch(seed) } : undefined} locale={pageLocale} /> : <div className="rg-state" role="alert">{t('research.unavailable')}</div>)}
         {state.phase === 'ready' && state.section === 'market' && <MarketPanel {...props} onResearch={openResearch} locale={pageLocale} demo={demo} />}
-        {state.phase === 'ready' && (state.section === 'virtual-fund' || state.section === 'portfolio') && <VirtualFundPanel key={state.section} locale={pageLocale} nodes={nodes} readState={readFundState} portfolioContent={<PortfolioPanel {...props} />} initialView={state.section === 'portfolio' ? 'portfolio' : 'office'} onResearch={(question, sessionId) => { if (conversations) void launch({ mode: 'question', question, skillName: 'virtual-fund' }, sessionId); else openResearch(question, 'virtual-fund') }} />}
+        {state.phase === 'ready' && (state.section === 'virtual-fund' || state.section === 'portfolio') && <VirtualFundPanel key={state.section} locale={pageLocale} nodes={nodes} readState={readFundState} readSchedules={readSchedules} portfolioContent={<PortfolioPanel {...props} />} initialView={state.section === 'portfolio' ? 'portfolio' : 'office'} onResearch={(question, sessionId) => { if (conversations) void launch({ mode: 'question', question, skillName: 'virtual-fund' }, sessionId); else openResearch(question, 'virtual-fund') }} />}
         {state.phase === 'ready' && state.section === 'valuations' && <ValuationsPanel {...props} />}
         {state.phase === 'ready' && state.section === 'predictions' && <PredictionsPanel {...props} onResearch={conversations ? openResearch : undefined} />}
         {state.phase === 'ready' && state.section === 'briefing' && <BriefingPanel {...props} onResearch={conversations ? openResearch : undefined} />}

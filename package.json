@@ -1,10 +1,14 @@
 {
   "name": "dsh-research-graph",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.0-dev.2",
+  "private": false,
   "type": "module",
   "description": "A local-first finance research workspace for DeepSeek Harness: evidence library, research Skills, stock analysis and paper-fund research desks.",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "tag": "preview"
+  },
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
   "exports": {
@@ -47,14 +51,17 @@
   "dependencies": {
     "js-yaml": "^4.1.0",
     "mammoth": "1.13.0",
-    "pdfjs-dist": "5.4.149"
+    "pdfjs-dist": "5.4.149",
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-commands": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-skill": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.1",
-    "@deepseek-ai/schemastery": "^3.18.5"
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@deepseek-ai/dsh-typert-protocol": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-typert-registry": "^0.2.1-rc.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
@@ -62,6 +69,8 @@
     "@deepseek-ai/dsh-skill": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.1",
     "@deepseek-ai/schemastery": "^3.18.5",
+    "@deepseek-ai/dsh-typert-protocol": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-typert-registry": "^0.2.1-rc.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.31",
@@ -95,7 +104,8 @@
       "external": [
         "react",
         "react/jsx-runtime",
-        "@deepseek-ai/dsh-client-ui-primitives"
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "zod"
       ]
     }
   },

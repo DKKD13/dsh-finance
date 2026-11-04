@@ -18,6 +18,9 @@ import { registerFinanceCommand } from './finance/commands.ts'
 import { FinanceService } from './finance/service.ts'
 import { registerFinanceTools } from './finance/tools.ts'
 import { ClipperHttpServer } from './finance/clipper-http.ts'
+import { FinanceWorkbenchRemote } from './finance/remote.ts'
+import { FINANCE_WORKBENCH_TYPERT } from './finance/remote-contract.ts'
+import type {} from '@deepseek-ai/dsh-typert-registry'
 
 export const name = 'dsh-research-graph'
 export const inject = ['skills', 'tools', 'commands']
@@ -33,6 +36,7 @@ export type { GraphPlan, GraphPlanNode, GraphPlanResult } from './plan.ts'
 export { ResearchGraphService, resolveConfig } from './service.ts'
 export type { ResearchGraphConfig, ResolvedResearchGraphConfig, ResearchGraphChange } from './service.ts'
 export { FinanceService } from './finance/service.ts'
+export { FinanceWorkbenchRemote } from './finance/remote.ts'
 export { FINANCE_OPS, executeFinanceRequest, parseFinanceRequestJson } from './finance/protocol.ts'
 export type { FinanceRequest, FinanceResponse, FinanceOp } from './finance/protocol.ts'
 export { calculateDcf, calculateComps } from './finance/models.ts'
@@ -104,6 +108,13 @@ export function apply(ctx: Context, config: ResearchGraphConfig): void {
   const graph = new ResearchGraphService(ctx, resolved)
   ctx.effect(() => registerSkillsProvider(ctx, resolved.skillsRoot), 'dsh-research-graph: skills provider')
   const finance = new FinanceService(ctx, graph, resolved)
+  new FinanceWorkbenchRemote(ctx, graph, finance)
+  ctx.inject(['typert'], typertContext => {
+    typertContext.effect(() => {
+      const registration = typertContext.typert.register(FINANCE_WORKBENCH_TYPERT)
+      return async () => { (await registration)() }
+    }, 'dsh-research-graph: workbench Remote')
+  })
   registerGraphTools(ctx, graph)
   registerGraphCommand(ctx, graph)
   registerFinanceTools(ctx, finance)

@@ -7,8 +7,14 @@
 1. 已安装 DeepSeek Harness，版本满足 `>=0.2.1-rc.1 <0.3.0`。
 2. 在未安装插件前，先用你自己的模型配置完成一次普通 DSH 对话。若普通对话无法回复，先处理宿主的模型连接；插件不附带模型或密钥。
 3. 从 [v0.1.0 发布页](https://github.com/DKKD13/dsh-finance/releases/tag/v0.1.0) 下载 `dsh-research-graph-0.1.0.tgz`。不要用页面里的 Source code 压缩包替代已构建的安装包。
-4. 将安装包解压到固定目录。要安装的是里面的 `package` 目录；它应包含 `package.json`、`cordis.patch.yml` 和 `dist/index.js`。安装路径必须是 DSH 所在电脑能访问的绝对路径。
-5. 在 DSH 对话中发送：
+4. 直接使用 npm 包安装到 DSH Web profile，无需解压：
+
+   ```sh
+   dsh plugin --profile web add /absolute/path/to/dsh-research-graph-0.1.0.tgz
+   ```
+
+   也可以先解压，再安装里面的 `package` 目录。它应包含 `package.json`、`cordis.patch.yml` 和 `dist/index.js`。安装路径必须是 DSH 所在电脑能访问的绝对路径。
+5. 若选择目录安装，在 DSH 对话中发送：
 
    ```text
    请使用 plugin_manager 的 install_bundle，安装以下本地目录：
@@ -16,6 +22,8 @@
    ```
 
 6. 等待插件管理器报告实际安装、激活结果，再打开侧栏的“金融”。请保留安装目录，不要安装后将它移入废纸篓。
+
+从源码构建时，先运行 `npm ci && npm run build`，再用 `PACKAGE=$(npm pack --silent)` 取得实际包名，最后执行 `dsh plugin --profile web add "$PWD/$PACKAGE"`。完整的 npm 与本地包安装说明见 [npm 安装](npm-install.md)。使用预发布标签时可执行 `dsh plugin --profile web add dsh-research-graph@preview`，再用 `npm list dsh-research-graph` 核对实际安装版本。
 
 本说明沿用宿主已有的插件安装方式；**发布流程仍未完成安装包在全新原生 DSH 中从安装到研究产物的完整验收**。若安装失败，请记录宿主给出的错误，不要通过关闭认证或修改数据库来绕过。
 

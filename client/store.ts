@@ -299,10 +299,27 @@ export class WorkbenchStore {
     })
   }
 
-  /** Retry after a failure, or reload after reconnecting. */
-  async refresh(): Promise<void> {
+  /** Check a small revision response before refreshing an already loaded graph. */
+  async loadIfChanged(): Promise<void> {
     if (this.state.busy !== null) return
+    if (this.state.phase !== 'ready') return this.load()
+    this.set({ busy: 'load' })
+    const stats = await this.run({ op: 'stats' })
+    if (!stats.ok) {
+      this.fail(stats.error)
+      return
+    }
+    const revision = (stats.result as { readonly revision?: unknown }).revision
+    this.set({ busy: null })
+    if (revision === this.state.revision) return
     await this.load()
+  }
+
+  /** Retry after a failure, or reload after reconnecting. */
+  async refresh(options: { readonly ifChanged?: boolean } = {}): Promise<void> {
+    if (this.state.busy !== null) return
+    if (options.ifChanged === true) await this.loadIfChanged()
+    else await this.load()
     if (this.state.phase === 'ready') {
       if (this.state.mode === 'history') await this.loadHistory()
       if (this.state.mode === 'audit') await this.loadAudit()

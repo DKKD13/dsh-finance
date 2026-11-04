@@ -24,4 +24,27 @@ describe('Finance discovery data boundary', () => {
     expect(html).toContain('Bitcoin')
     expect(html).not.toContain('Real record')
   })
+  it('puts saved-quote assets before quote-less instrument records in the market cards', () => {
+    const at = '2026-11-01T20:00:00Z'
+    const quoteEvidence = (symbol: string, price: number, change: number): GraphNode[] => [
+      { id: `source:${symbol}`, kind: 'source', title: `${symbol} quote`, content: '', metadata: { provider: 'yahoo' }, createdAt: 1, updatedAt: 1 },
+      { id: `raw:${symbol}`, kind: 'raw', title: `${symbol} quote body`, content: '', metadata: { provider: 'yahoo', sourceId: `source:${symbol}`, data: { symbol, regularMarketPrice: price, regularMarketChangePercent: change, regularMarketTime: at, currency: 'USD', exchangeTimezoneName: 'UTC' } }, createdAt: 1, updatedAt: 1 },
+    ]
+    const nodes = [
+      { id: 'instrument:qa', kind: 'instrument', title: 'QA instrument', content: '', metadata: { symbol: 'QA' }, createdAt: 1, updatedAt: 1 },
+      ...quoteEvidence('AAPL', 218.4, 1.32),
+      { id: 'instrument:aapl', kind: 'instrument', title: 'Apple', content: '', metadata: { symbol: 'AAPL' }, createdAt: 1, updatedAt: 1 },
+      ...quoteEvidence('GOOGL', 184.6, -.72),
+      { id: 'instrument:googl', kind: 'instrument', title: 'Alphabet', content: '', metadata: { symbol: 'GOOGL' }, createdAt: 1, updatedAt: 1 },
+    ] satisfies GraphNode[]
+    const html = renderToString(createElement(DiscoveryPanel, { kind: 'market', demo: false, nodes, locale: 'en', onWatch: vi.fn(), onOpenSymbol: vi.fn(), onOpenSection: vi.fn() }))
+    const start = html.indexOf('class="rg-discovery-tickers"')
+    const end = html.indexOf('class="rg-discovery-summary"')
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(end).toBeGreaterThan(start)
+    const cards = html.slice(start, end)
+    expect(cards.indexOf('instrument:aapl')).toBeLessThan(cards.indexOf('instrument:qa'))
+    expect(cards.indexOf('instrument:googl')).toBeLessThan(cards.indexOf('instrument:qa'))
+    expect(cards.indexOf('instrument:aapl')).toBeLessThan(cards.indexOf('instrument:googl'))
+  })
 })

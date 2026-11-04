@@ -60,6 +60,8 @@ export interface FundAdvanceInput {
 
 export interface FundStateInput {
   readonly fundId?: string
+  /** Skip returning records the caller already has at this graph revision. */
+  readonly knownRevision?: number
 }
 
 export interface FundSnapshotPosition {
@@ -104,6 +106,8 @@ export interface FundSnapshotView {
 }
 
 export interface FundStateResult {
+  /** A compact poll response; the caller keeps its existing records. */
+  readonly unchanged?: boolean
   /** Authoritative portfolio nodes carrying metadata.virtualFund. */
   readonly funds: readonly GraphNode[]
   /** Authoritative session nodes with metadata.type = "fund-researcher". */
@@ -112,6 +116,11 @@ export interface FundStateResult {
   readonly snapshots: readonly GraphNode[]
   /** Deliverable nodes carrying metadata.fundId. */
   readonly events: readonly GraphNode[]
+}
+
+interface FundStateRead extends FundStateResult {
+  /** The revision belonging to these exact returned node arrays. */
+  readonly revision: number
 }
 
 export interface FundConfigureResult {
@@ -622,11 +631,24 @@ export class VirtualFundManager {
     return run
   }
 
-  state(input: FundStateInput = {}): Promise<FundStateResult> {
+  state(input: FundStateInput = {}): Promise<FundStateRead> {
     return this.serialized(async () => {
       const requestedFund = input.fundId === undefined ? undefined : requiredString(input.fundId, 'fundId')
-      const snapshot = await this.graph.snapshot()
-      const funds = fundNodes(snapshot.nodes)
+      if (input.knownRevision !== undefined
+        && (!Number.isSafeInteger(input.knownRevision) || input.knownRevision < 0)) {
+        throw new GraphError('INVALID_FUND_INPUT', 'knownRevision must be a non-negative safe integer')
+      }
+      const snapshot = await this.graph.readNodeSnapshot()
+      // Legacy unversioned graphs can be non-empty at revision zero. Their
+      // first full read is safe to repeat; never replace it with an empty cache.
+      if (input.knownRevision !== undefined && input.knownRevision > 0
+        && input.knownRevision === snapshot.revision && requestedFund === undefined) {
+        return { revision: snapshot.revision, unchanged: true, funds: [], researchers: [], snapshots: [], events: [] }
+      }
+      // Fund state only reads nodes; listing them avoids copying and sorting
+      // every edge on each poll (the panel refreshes on an interval).
+      const nodes = snapshot.nodes
+      const funds = fundNodes(nodes)
         .filter(node => requestedFund === undefined || node.id === requestedFund)
         .sort((left, right) => left.id.localeCompare(right.id))
       for (const node of funds) virtualFundSettings(node.metadata)
@@ -634,21 +656,22 @@ export class VirtualFundManager {
         throw new GraphError('FUND_NOT_FOUND', `virtual fund "${requestedFund}" does not exist`)
       }
       const allowedFunds = new Set(funds.map(fund => fund.id))
-      const researchers = researcherNodes(snapshot.nodes)
+      const researchers = researcherNodes(nodes)
         .filter(node => allowedFunds.has(String(node.metadata.fundId)))
         .sort((left, right) => left.id.localeCompare(right.id))
       for (const node of researchers) researcherView(node)
       return {
+        revision: snapshot.revision,
         funds,
         researchers,
-        snapshots: snapshotNodes(snapshot.nodes)
+        snapshots: snapshotNodes(nodes)
           .filter(node => allowedFunds.has(String(node.metadata.fundId)))
           .sort((left, right) => {
             const leftAsOf = typeof left.metadata.asOf === 'string' ? left.metadata.asOf : ''
             const rightAsOf = typeof right.metadata.asOf === 'string' ? right.metadata.asOf : ''
             return leftAsOf.localeCompare(rightAsOf) || left.id.localeCompare(right.id)
           }),
-        events: snapshot.nodes
+        events: nodes
           .filter(node => node.kind === 'deliverable' && typeof node.metadata.fundId === 'string' && allowedFunds.has(node.metadata.fundId))
           .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id)),
       }
@@ -662,13 +685,13 @@ export class VirtualFundManager {
       const initialCash = finite(input.initialCash, 'initialCash', 0)
       const currency = currencyCode(input.currency, 'currency')
       const startingAt = isoTime(input.startingAt, 'startingAt').value
-      const snapshot = await this.graph.snapshot()
-      const existing = snapshot.nodes.find(node => node.id === id)
+      const nodes = await this.graph.listNodes()
+      const existing = nodes.find(node => node.id === id)
       if (existing !== undefined && existing.kind !== 'portfolio') {
         throw new GraphError('FUND_CONFLICT', `node "${id}" is ${existing.kind}, not portfolio`)
       }
       const existingVirtualFund = isRecord(existing?.metadata.virtualFund) ? existing.metadata.virtualFund : {}
-      const hasSnapshots = snapshotNodes(snapshot.nodes).some(node => node.metadata.fundId === id)
+      const hasSnapshots = snapshotNodes(nodes).some(node => node.metadata.fundId === id)
       if (hasSnapshots
         && (existingVirtualFund.initialCash !== initialCash
           || existingVirtualFund.currency !== currency
@@ -710,9 +733,9 @@ export class VirtualFundManager {
       const researcherRole = role(input.role)
       const parsedAvatar = avatarKey(input.avatarKey)
       if (typeof input.enabled !== 'boolean') throw new GraphError('INVALID_FUND_INPUT', 'enabled must be a boolean')
-      const snapshot = await this.graph.snapshot()
-      findFund(snapshot.nodes, fundId)
-      const existing = snapshot.nodes.find(node => node.id === id)
+      const nodes = await this.graph.listNodes()
+      findFund(nodes, fundId)
+      const existing = nodes.find(node => node.id === id)
       if (existing !== undefined && existing.kind !== 'session') {
         throw new GraphError('FUND_CONFLICT', `researcher id "${id}" is ${existing.kind}, not session`)
       }
@@ -765,16 +788,16 @@ export class VirtualFundManager {
     return this.serialized(async () => {
       const fundId = requiredString(input.fundId, 'fundId')
       const target = isoTime(input.asOf, 'asOf')
-      const snapshot = await this.graph.snapshot()
-      const fundNode = findFund(snapshot.nodes, fundId)
-      const snapshots = snapshotNodes(snapshot.nodes)
+      const nodes = await this.graph.listNodes()
+      const fundNode = findFund(nodes, fundId)
+      const snapshots = snapshotNodes(nodes)
         .filter(node => node.metadata.fundId === fundId)
         .map(snapshotView)
         .sort((left, right) => Date.parse(left.asOf) - Date.parse(right.asOf) || left.id.localeCompare(right.id))
       const existing = snapshots.find(entry => entry.asOf === target.value)
       if (existing !== undefined) {
         const previous = [...snapshots].reverse().find(entry => Date.parse(entry.asOf) < target.milliseconds)
-        const rebuilt = buildSnapshot(fundNode, snapshot.nodes, { ...input, asOf: target.value }, previous)
+        const rebuilt = buildSnapshot(fundNode, nodes, { ...input, asOf: target.value }, previous)
         if (sameSnapshot(existing, rebuilt.view)) return { snapshot: existing }
         throw new GraphError('DUPLICATE_SNAPSHOT_CONFLICT', `snapshot ${target.value} already exists with different ledger data`)
       }
@@ -782,7 +805,7 @@ export class VirtualFundManager {
       if (latest !== undefined && target.milliseconds < Date.parse(latest.asOf)) {
         throw new GraphError('OUT_OF_ORDER_SNAPSHOT', `asOf ${target.value} is earlier than latest snapshot ${latest.asOf}`)
       }
-      const built = buildSnapshot(fundNode, snapshot.nodes, { ...input, asOf: target.value }, latest)
+      const built = buildSnapshot(fundNode, nodes, { ...input, asOf: target.value }, latest)
       const applied = await this.graph.applyPlan({ nodes: [built.node], edges: [] }, 'finance.fund.advance', `advance virtual fund ${fundId} to ${target.value}`)
       return { snapshot: applied.result.changed ? built.view : snapshotView(applied.result.nodes[0] as GraphNode) }
     })

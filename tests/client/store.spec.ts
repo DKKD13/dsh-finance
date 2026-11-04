@@ -55,6 +55,24 @@ async function seeded() {
 }
 
 describe('WorkbenchStore', () => {
+  it('checks revision before replacing a loaded snapshot during background refresh', async () => {
+    const temp = await makeTempDir('client-revision-refresh')
+    cleanups.push(temp.cleanup)
+    const graph = new ResearchGraphService(new Context(), resolveConfig({ dataDir: join(temp.dir, 'data'), autoIndexSkills: false }, join(temp.dir, 'skills')))
+    const calls: string[] = []
+    const store = new WorkbenchStore({ request: async request => {
+      calls.push(request.op)
+      return executeGraphRequest(graph, request)
+    } }, t)
+    await store.load()
+    await store.loadIfChanged()
+    expect(calls).toEqual(['graph.snapshot', 'stats'])
+    await graph.createNode({ id: 'claim:external', kind: 'claim', title: 'External research', content: '' })
+    await store.loadIfChanged()
+    expect(calls).toEqual(['graph.snapshot', 'stats', 'stats', 'graph.snapshot'])
+    expect(store.getSnapshot().nodes.map(node => node.id)).toContain('claim:external')
+  })
+
   it('reveals a linked node through filters without changing persisted graph data', async () => {
     const { store } = await seeded()
     store.setQuery('unrelated')

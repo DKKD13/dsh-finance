@@ -1,6 +1,6 @@
 /** Layout tests: deterministic placement, pinned anchors, viewport math. */
 import { describe, expect, it, vi } from 'vitest'
-import { computeLayout, fitViewport, neighborsOf, panBy, screenToWorld, worldToScreen, zoomAt } from '../../client/layout.ts'
+import { collidingLabels, computeLayout, estimateLabelBox, fitViewport, neighborsOf, panBy, pinnedLabelLift, screenToWorld, worldToScreen, zoomAt } from '../../client/layout.ts'
 import type { GraphEdge, GraphNode } from '../../src/graph.ts'
 
 function node(id: string): GraphNode {
@@ -83,5 +83,68 @@ describe('layout', () => {
     expect(bottomRight.x).toBeLessThanOrEqual(741)
     expect(bottomRight.y).toBeLessThanOrEqual(541)
     expect(fitViewport({}, 800, 600)).toEqual({ x: 400, y: 300, zoom: 1 })
+  })
+
+  it('measures CJK labels wider than Latin ones', () => {
+    const latin = estimateLabelBox({ x: 0, y: 20 }, 'ABCD', 11)
+    const cjk = estimateLabelBox({ x: 0, y: 20 }, '中文标签', 11)
+    expect(cjk.width).toBeGreaterThan(latin.width)
+    expect(latin.x).toBeCloseTo(-latin.width / 2, 6)
+    expect(cjk.x).toBeCloseTo(-cjk.width / 2, 6)
+    expect(cjk.width).toBeCloseTo(4 * 11, 6)
+    expect(latin.width).toBeCloseTo(4 * 11 * 0.56, 6)
+    expect(latin.y).toBeCloseTo(20 - 11, 6)
+    expect(latin.height).toBeCloseTo(11 * 1.2, 6)
+  })
+
+  it('hides colliding neighbor labels but keeps the pinned selection label', () => {
+    const box = (x: number) => estimateLabelBox({ x, y: 100 }, 'AMD', 11)
+    const hidden = collidingLabels([
+      { id: 'selected', priority: 1, box: box(0) },
+      { id: 'near-a', priority: 0, box: box(8) },
+      { id: 'far', priority: 0, box: box(400) },
+    ])
+    expect(hidden.has('selected')).toBe(false)
+    expect(hidden.has('near-a')).toBe(true)
+    expect(hidden.has('far')).toBe(false)
+  })
+
+  it('lifts the hovered pinned label above its node when the two pinned labels overlap', () => {
+    const box = (x: number, y = 100) => estimateLabelBox({ x, y }, 'AMD', 11)
+    const placements = [
+      { id: 'selected', priority: 1, box: box(0) },
+      { id: 'hovered', priority: 1, box: box(8) },
+    ]
+    const lift = pinnedLabelLift(placements, 'selected', 'hovered', -42)
+    expect(lift.get('hovered')).toBe(-42)
+    expect(lift.has('selected')).toBe(false)
+  })
+
+  it('keeps both pinned labels in place when their boxes do not overlap', () => {
+    const box = (x: number) => estimateLabelBox({ x, y: 100 }, 'AMD', 11)
+    const placements = [
+      { id: 'selected', priority: 1, box: box(0) },
+      { id: 'hovered', priority: 1, box: box(300) },
+    ]
+    const lift = pinnedLabelLift(placements, 'selected', 'hovered', -42)
+    expect(lift.size).toBe(0)
+  })
+
+  it('never lifts when hover equals selection or a pinned id is absent', () => {
+    const box = (x: number) => estimateLabelBox({ x, y: 100 }, 'AMD', 11)
+    const placements = [{ id: 'same', priority: 1, box: box(0) }]
+    expect(pinnedLabelLift(placements, 'same', 'same', -42).size).toBe(0)
+    expect(pinnedLabelLift(placements, 'selected', null, -42).size).toBe(0)
+    expect(pinnedLabelLift(placements, 'selected', 'missing', -42).size).toBe(0)
+  })
+
+  it('breaks priority ties by input order so placement is deterministic', () => {
+    const box = (x: number) => estimateLabelBox({ x, y: 100 }, 'NVDA', 11)
+    const placements = [
+      { id: 'first', priority: 0, box: box(0) },
+      { id: 'second', priority: 0, box: box(6) },
+    ]
+    expect([...collidingLabels(placements)]).toEqual(['second'])
+    expect([...collidingLabels([...placements].reverse())]).toEqual(['first'])
   })
 })

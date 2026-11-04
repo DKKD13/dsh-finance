@@ -3,8 +3,10 @@ import { renderToString } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { aggregateMarketBars, lineSegments, nextChartIndex, nextMatrixIndex, pointerChartIndex, readCalibration, readPortfolioReturns } from '../../client/chart-data.ts'
 import type { MarketBar } from '../../client/chart-data.ts'
-import { AllocationBars, CalibrationPlot, MarketChart, SensitivityMatrix, Sparkline } from '../../client/ui/FinanceCharts.tsx'
+import { AllocationBars, CalibrationPlot, MarketChart, ScenarioBars, SensitivityMatrix, Sparkline } from '../../client/ui/FinanceCharts.tsx'
 import { ProvenanceList } from '../../client/ui/FinanceCommon.tsx'
+import { ValuationResult } from '../../client/ui/FinanceData.tsx'
+import { valuationPriceReference } from '../../client/ui/FinanceModels.tsx'
 import { en } from '../../client/locales.ts'
 import type { Translate } from '../../client/store.ts'
 
@@ -135,6 +137,94 @@ describe('financial SVG rendering', () => {
     expect(html).toContain('tabindex="0"')
     expect(html).toContain('Exact data (2 rows)')
     expect(html).toContain('real warning')
+  })
+
+  it('renders percent axes, base-relative coloring, and full-precision titles in the sensitivity matrix', () => {
+    const html = renderToString(createElement(SensitivityMatrix, {
+      rows: [
+        { wacc: 0.09, values: [{ terminalGrowth: 0.02, perShare: 80 }, { terminalGrowth: 0.03, perShare: 86.5 }] },
+        { wacc: 0.1, values: [{ terminalGrowth: 0.02, perShare: 71.24999999999999 }, { terminalGrowth: 0.03, perShare: 65 }] },
+      ],
+      center: { wacc: 0.1, terminalGrowth: 0.02, perShare: 71.24999999999999 }, currency: 'USD', warnings: [], t,
+    }))
+    expect(html).toContain('>9%</text>')
+    expect(html).toContain('>10%</text>')
+    expect(html).toContain('>2%</text>')
+    expect(html).toContain('>3%</text>')
+    expect(html).not.toContain('>0.09</text>')
+    expect(html).toContain('data-direction="positive"')
+    expect(html).toContain('data-direction="negative"')
+    expect(html).toContain('Per share 71.24999999999999 USD')
+    expect(html).toContain('>86.50</text>')
+    // Selection readout follows the same percent/amount formatting as axes and cells (review-03 F2).
+    const selection = html.match(/rg-chart-selection[^>]*>([^<]*)</)?.[1] ?? ''
+    expect(selection).toBe('WACC 10% · Terminal growth 2% · 71.25 USD')
+  })
+
+  it('falls back to the min-max ramp when the sensitivity result has no base cell', () => {
+    const html = renderToString(createElement(SensitivityMatrix, {
+      rows: [{ wacc: 0.09, values: [{ terminalGrowth: 0.02, perShare: 80 }, { terminalGrowth: 0.03, perShare: 60 }] }],
+      currency: 'USD', warnings: [], t,
+    }))
+    expect(html).not.toContain('data-direction=')
+  })
+
+  it('draws the saved-quote reference line and extends the domain when the price is outside the scenario range', () => {
+    const items = [{ name: 'base', probability: 1, perShare: 100 }]
+    const withRef = renderToString(createElement(ScenarioBars, {
+      items, currency: 'USD', t, reference: { price: 87.23, asOf: '2026-10-31T13:30:00Z', provider: 'yahoo' },
+    }))
+    expect(withRef).toContain('rg-scenario-reference')
+    expect(withRef).toContain('Saved quote reference')
+    expect(withRef).toContain('Saved quote 87.23 from yahoo as of 2026-10-31T13:30:00Z')
+    const withoutRef = renderToString(createElement(ScenarioBars, { items, currency: 'USD', t }))
+    expect(withoutRef).not.toContain('rg-scenario-reference')
+    // A reference above every scenario extends the domain instead of hiding the
+    // line: the true scenario value stays unclamped, the line shows the distance.
+    const outOfRange = renderToString(createElement(ScenarioBars, {
+      items, currency: 'USD', t, reference: { price: 500, asOf: '2026-10-31T13:30:00Z', provider: 'yahoo' },
+    }))
+    expect(outOfRange).toContain('rg-scenario-reference')
+    expect(outOfRange).toContain('x1="176"')
+    expect(outOfRange).toContain('>100.00</text>')
+  })
+
+  it('shows the saved-quote reference row on the valuation summary only when supplied', () => {
+    const value = {
+      result: {
+        method: 'dcf', currency: 'USD', enterpriseValue: 9200, equityValue: 8100, perShare: 71.24999999999999,
+        instrument: { id: 'ins:msft', symbol: 'MSFT', currency: 'USD' },
+        scenarios: [{ name: 'base', probability: 1, wacc: 0.1, terminalGrowth: 0.03, taxRate: 0.25, equityValue: 8100, perShare: 71.24999999999999 }],
+        sensitivity: { rows: [{ wacc: 0.1, values: [{ terminalGrowth: 0.03, perShare: 71.25 }] }], center: { wacc: 0.1, terminalGrowth: 0.03, perShare: 71.25 } },
+        warnings: [],
+      },
+    }
+    const withRef = renderToString(createElement(ValuationResult, {
+      value, t, priceReference: { price: 60, asOf: '2026-10-31T13:30:00Z', provider: 'yahoo' },
+    })).replaceAll('<!-- -->', '')
+    expect(withRef).toContain('Saved quote reference')
+    expect(withRef).toContain('60.00 USD · yahoo · 2026-10-31T13:30:00Z')
+    expect(withRef).toContain('rg-scenario-reference')
+    expect(withRef).toContain('100%')
+    expect(withRef).toContain('<td>10%</td>')
+    expect(withRef).toContain('<td>25%</td>')
+    const withoutRef = renderToString(createElement(ValuationResult, { value, t }))
+    expect(withoutRef).not.toContain('Saved quote reference')
+    expect(withoutRef).not.toContain('rg-scenario-reference')
+  })
+
+  it('accepts a saved quote as price reference only for the same currency', () => {
+    const quote = { symbol: 'MSFT', price: 87.23, change: null, asOf: '2026-10-31T13:30:00Z', provider: 'yahoo', sourceId: 'src:1', currency: 'USD', timezone: null, name: null, shortName: null }
+    const value = { result: { currency: 'USD', instrument: { symbol: 'MSFT' } } }
+    expect(valuationPriceReference(value, new Map([['MSFT', quote]]))).toEqual({ price: 87.23, asOf: '2026-10-31T13:30:00Z', provider: 'yahoo' })
+    const otherCurrency = { ...quote, currency: 'HKD' }
+    expect(valuationPriceReference(value, new Map([['MSFT', otherCurrency]]))).toBeUndefined()
+    const noSymbol = { result: { currency: 'USD' } }
+    expect(valuationPriceReference(noSymbol, new Map([['MSFT', quote]]))).toBeUndefined()
+    const missingQuote = { result: { currency: 'USD', instrument: { symbol: 'AAPL' } } }
+    expect(valuationPriceReference(missingQuote, new Map([['MSFT', quote]]))).toBeUndefined()
+    const zeroPrice = { ...quote, price: 0 }
+    expect(valuationPriceReference(value, new Map([['MSFT', zeroPrice]]))).toBeUndefined()
   })
 
   it('does not fabricate a calibration plot from evaluations and renders only real bins', () => {

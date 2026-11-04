@@ -28,6 +28,8 @@ import type { GraphRequest, GraphResponse } from '../src/protocol.ts'
 import { dictionaries } from './locales.ts'
 import { executeFinanceCommand, executeGraphCommand, resolveGraphSession } from './protocol.ts'
 import type { CommandsRemoteLike, FinanceCommandRequest, SessionListLike } from './protocol.ts'
+import type { FinanceWorkbenchRemoteLike, ScheduleRemoteLike } from './protocol.ts'
+import { FINANCE_WORKBENCH_REMOTE } from '../src/finance/remote-contract.ts'
 import { FinanceStore } from './finance-store.ts'
 import type { FinanceGateway } from './finance-store.ts'
 import { WorkbenchStore } from './store.ts'
@@ -44,6 +46,9 @@ import { createConversationGateway } from './conversations.ts'
 import type { ConversationBindingLike, ConversationGateway, ConversationGatewayDependencies, ConversationSessionsLike } from './conversations.ts'
 import { ResearchCommandView } from './ui/ResearchCommandView.tsx'
 import type { ResearchCommandViewProps } from './ui/ResearchCommandView.tsx'
+import { FinanceToolView, FINANCE_TOOL_VIEW_TOOLS } from './ui/FinanceToolView.tsx'
+import type { FinanceToolViewProps } from './ui/FinanceToolView.tsx'
+import { createHostNavigator, registerHostNavigator } from './host-nav.ts'
 
 /** Dictionary namespace registered with the shell locale service. */
 export const NS = 'researchGraph'
@@ -56,6 +61,7 @@ export const inject = ['slots', 'layout', 'locale', 'remote', 'remote.commands',
 
 /** Structural face of the shell context this bundle relies on. */
 export interface ClientShell {
+  inject?(dependencies: string[], callback: (context: ClientShell) => void): unknown
   readonly conversation?: ConversationGatewayDependencies<string, ConversationBindingLike, string>['conversation']
   readonly uiWorkspace?: ConversationGatewayDependencies<string, ConversationBindingLike, string>['navigation']
   readonly workspaces?: ConversationGatewayDependencies<string, ConversationBindingLike, string>['workspaces']
@@ -69,7 +75,12 @@ export interface ClientShell {
     inject(name: string, register: () => unknown): unknown
     register(options: Record<string, unknown>, component: unknown): unknown
   }
-  readonly remote: { readonly commands: CommandsRemoteLike }
+  readonly remote: {
+    readonly commands: CommandsRemoteLike
+    readonly schedule?: ScheduleRemoteLike
+    readonly financeWorkbench?: FinanceWorkbenchRemoteLike
+    $mount?(contribution: unknown): Promise<() => Promise<void>>
+  }
   readonly layout?: {
     selectPanel?(panelId: string | null): void
     readonly panelInfo: {
@@ -81,8 +92,13 @@ export interface ClientShell {
     readonly list: { getSnapshot(): SessionListLike }
     create(opts?: Record<string, unknown>): Promise<string>
   }
+  /** Optional host sidebar-right navigator; probed before use (older shells lack it). */
+  readonly sidebarRight?: {
+    readonly mounted?: { getSnapshot(): string | undefined }
+    openResource?: (address: string, options?: Record<string, unknown>) => void
+  }
   on(event: string, listener: () => void): unknown
-  effect(setup: () => (() => void) | void, label?: string): unknown
+  effect(setup: () => unknown, label?: string): unknown
 }
 
 /**
@@ -93,7 +109,7 @@ export interface ClientShell {
 class RemoteGraphGateway implements GraphGateway {
   private creating: Promise<string> | undefined
 
-  constructor(private readonly ctx: ClientShell) {}
+  constructor(private readonly ctx: ClientShell, private readonly workbench?: Promise<WorkbenchMount | undefined>) {}
 
   async sessionId(): Promise<string | undefined> {
     const resolved = resolveGraphSession(this.ctx.sessions.list.getSnapshot())
@@ -108,16 +124,59 @@ class RemoteGraphGateway implements GraphGateway {
   }
 
   async request(request: GraphRequest): Promise<GraphResponse> {
+    if (request.op === 'graph.snapshot' && this.workbench !== undefined) {
+      const mounted = await this.workbench
+      const remote = mounted?.context.remote.financeWorkbench
+      if (remote !== undefined) {
+        const response = await remote.graphSnapshot()
+        return response.ok ? response.value : { ok: false, error: response.error }
+      }
+    }
     return executeGraphCommand(this.ctx.remote.commands, await this.sessionId(), request)
   }
 }
 
 class RemoteFinanceGateway implements FinanceGateway {
-  constructor(private readonly ctx: ClientShell, private readonly sessions: RemoteGraphGateway) {}
+  constructor(private readonly ctx: ClientShell, private readonly sessions: RemoteGraphGateway, private readonly workbench?: Promise<WorkbenchMount | undefined>) {}
 
   async request(request: FinanceCommandRequest): Promise<GraphResponse> {
+    if (request.op === 'fund.state' && this.workbench !== undefined) {
+      const mounted = await this.workbench
+      const remote = mounted?.context.remote.financeWorkbench
+      if (remote !== undefined) {
+        const input = typeof request.input === 'object' && request.input !== null && !Array.isArray(request.input) ? request.input : {}
+        const response = await remote.fundState(input)
+        return response.ok ? response.value : { ok: false, error: response.error }
+      }
+    }
     return executeFinanceCommand(this.ctx.remote.commands, await this.sessions.sessionId(), request)
   }
+}
+
+interface WorkbenchMount {
+  readonly context: ClientShell
+  readonly dispose: () => Promise<void>
+}
+
+/** Mount the Session-free read path before the first graph request. */
+export function mountWorkbenchRemote(ctx: ClientShell): Promise<WorkbenchMount | undefined> | undefined {
+  if (!ctx.remote.$mount || !ctx.inject) return undefined
+  const ready = (async (): Promise<WorkbenchMount | undefined> => {
+    const dispose = await ctx.remote.$mount!(FINANCE_WORKBENCH_REMOTE)
+    return new Promise<WorkbenchMount>(resolve => {
+      ctx.inject!(['remote.financeWorkbench'], context => {
+        context.effect(() => {
+          resolve({ context, dispose })
+          return dispose
+        }, 'dsh-research-graph: workbench Remote namespace')
+      })
+    })
+  })().catch(() => undefined)
+  ctx.effect(() => async () => {
+    const mounted = await ready
+    await mounted?.dispose()
+  }, 'dsh-research-graph: workbench Remote mount')
+  return ready
 }
 
 class RemoteSessionPromptGateway implements SessionPromptGateway {
@@ -151,6 +210,22 @@ function ResearchCommandEntry({ node, localeFace }: ResearchCommandViewProps & {
     localeFace?.getSnapshot ?? DEFAULT_LOCALE_FACE.getSnapshot,
   )
   return <ResearchCommandView node={node} locale={locale} />
+}
+
+/**
+ * Slot entry for the keyed tool.call.toolview registration. The shell hands
+ * the owner payload plus this bundle's `localeFace` inject; the raw view
+ * needs a plain locale string, so subscribe here exactly like the command
+ * view above. Without this the card would stay Chinese under an English
+ * host because the `locale` prop never arrives.
+ */
+function FinanceToolViewEntry({ localeFace, ...owner }: FinanceToolViewProps & { readonly localeFace?: LocaleFace }) {
+  const locale = useSyncExternalStore(
+    localeFace?.subscribe ?? DEFAULT_LOCALE_FACE.subscribe,
+    localeFace?.getSnapshot ?? DEFAULT_LOCALE_FACE.getSnapshot,
+    localeFace?.getSnapshot ?? DEFAULT_LOCALE_FACE.getSnapshot,
+  )
+  return <FinanceToolView {...owner} locale={locale} />
 }
 
 /** Loose slot-component props the shell hands to registered entries. */
@@ -203,6 +278,27 @@ export function apply(ctx: ClientShell): void {
       inject: () => ({ localeFace }),
     }, ResearchCommandEntry)) as (() => void) | void, `dsh-research-graph: ${command} command view`)
   }
+  // Own-tool process views: the keyed tool.call.toolview slot renders these
+  // instead of the generic tool row. Registration mirrors the command view
+  // above; a host without the slot never dispatches them.
+  for (const tool of FINANCE_TOOL_VIEW_TOOLS) {
+    ctx.effect(() => ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
+      name: 'tool.call.toolview',
+      key: tool,
+      inject: () => ({ localeFace }),
+    }, FinanceToolViewEntry)) as (() => void) | void, `dsh-research-graph: ${tool} tool view`)
+  }
+
+  // Probe the host's sidebar-right navigator so panel buttons (e.g. the HTML
+  // visual artifact entry) can open the host document preview. Hosts without
+  // the service leave the navigator unset; UI surfaces that as feedback.
+  ctx.inject?.(['sidebarRight'], navigation => {
+    navigation.effect(() => {
+      registerHostNavigator(createHostNavigator(navigation))
+      return () => { registerHostNavigator(undefined) }
+    }, 'dsh-research-graph: host navigator')
+  })
+
   ctx.effect(() => {
     if (typeof document === 'undefined') return
     const style = document.createElement('style')
@@ -212,10 +308,18 @@ export function apply(ctx: ClientShell): void {
     return () => { style.remove() }
   }, 'dsh-research-graph: styles')
 
-  const graphGateway = new RemoteGraphGateway(ctx)
+  const workbench = mountWorkbenchRemote(ctx)
+  const graphGateway = new RemoteGraphGateway(ctx, workbench)
   const store = new WorkbenchStore(graphGateway, t, typeof localStorage === 'undefined' ? undefined : localStorage)
-  const finance = new FinanceStore(new RemoteFinanceGateway(ctx, graphGateway), t, () => store.load())
-  const research = new ResearchStore(graphGateway, new RemoteSessionPromptGateway(ctx, graphGateway), () => store.load())
+  const finance = new FinanceStore(new RemoteFinanceGateway(ctx, graphGateway, workbench), t, () => store.loadIfChanged())
+  // Older shells do not compose schedule Remote. Keep coverage verification optional.
+  ctx.inject?.(['remote.schedule'], scheduleContext => {
+    scheduleContext.effect(() => {
+      finance.setScheduleReader(scheduleContext.remote.schedule)
+      return () => { finance.setScheduleReader(undefined) }
+    }, 'dsh-research-graph: schedule reader')
+  })
+  const research = new ResearchStore(graphGateway, new RemoteSessionPromptGateway(ctx, graphGateway), () => store.loadIfChanged())
   const conversations = ctx.conversation && ctx.uiWorkspace && ctx.workspaces ? createConversationGateway({
     // This bundle keeps a small shell face; the native adapter is checked against the installed DSH SDK.
     sessions: ctx.sessions as unknown as ConversationSessionsLike<string, ConversationBindingLike, string>,
@@ -239,7 +343,7 @@ export function apply(ctx: ClientShell): void {
         else activatePanel(entry, store, finance)
         previousEntry = entry.id
         // Native conversations can save research while this panel is away.
-        void store.refresh()
+        void store.refresh({ ifChanged: true })
       }
     }
     activateActive()

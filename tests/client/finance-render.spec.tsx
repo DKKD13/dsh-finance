@@ -20,6 +20,7 @@ import { WorkbenchStore } from '../../client/store.ts'
 import type { GraphGateway, Translate } from '../../client/store.ts'
 import { en, zh } from '../../client/locales.ts'
 import { WorkbenchPage } from '../../client/ui/WorkbenchPage.tsx'
+import { CalibrationResult } from '../../client/ui/FinanceMemory.tsx'
 import { CatalystTimeline } from '../../client/ui/FinancePanels.tsx'
 import { VirtualFundPanel } from '../../client/ui/VirtualFundPanel.tsx'
 import { formatSnapshotDateTime, VirtualFundOverview } from '../../client/ui/VirtualFundOverview.tsx'
@@ -612,5 +613,96 @@ describe('finance workspace rendering', () => {
     expect(html).toContain('假说')
     expect(html).toContain('虚拟基金')
     expect(html).toContain('预测')
+  })
+})
+
+describe('calibration warnings visibility', () => {
+  it('surfaces the Host small-sample warning outside Raw JSON', () => {
+    const value = {
+      asOf: '2026-10-30T00:00:00Z',
+      due: 2,
+      resolved: 2,
+      errors: 0,
+      pendingDue: 0,
+      directionalAccuracy: 0.5,
+      brierScore: 0.21,
+      brierCount: 4,
+      calibrationBins: [],
+      evaluations: [],
+      warnings: ['small calibration sample: 4 determinate prediction(s); interpret bins cautiously (30+ recommended)'],
+    }
+    const html = renderToString(createElement(CalibrationResult, { value, t: translate(en) }))
+    const warningAt = html.indexOf('small calibration sample: 4 determinate prediction(s)')
+    expect(warningAt).toBeGreaterThanOrEqual(0)
+    expect(html).toContain('rg-chart-warnings')
+    // The visible notice must come from the result body itself, not only the collapsed Raw JSON block.
+    const rawAt = html.indexOf('rg-finance-raw')
+    expect(rawAt === -1 || warningAt < rawAt).toBe(true)
+  })
+
+  it('renders nothing extra when the Host returns no warnings', () => {
+    const value = { asOf: '2026-10-30T00:00:00Z', brierScore: null, brierCount: 0, calibrationBins: [], evaluations: [], warnings: [] }
+    const html = renderToString(createElement(CalibrationResult, { value, t: translate(en) }))
+    expect(html).not.toContain('rg-chart-warnings')
+  })
+})
+
+describe('virtual fund selection persistence', () => {
+  const fundNode = (id: string, title: string, currency: string): GraphNode => ({
+    id, kind: 'portfolio', title, content: '',
+    metadata: { virtualFund: { initialCash: 1000000, currency, startingAt: '2026-11-01T00:00:00Z' } },
+    createdAt: 1, updatedAt: 1,
+  })
+
+  it('restores the chosen fund after the panel remounts within a tab session', () => {
+    const usd = fundNode('portfolio:fund:usd', 'USD Fund', 'USD')
+    const hkd = fundNode('portfolio:fund:hkd', 'HKD Fund', 'HKD')
+    const saved = new Map<string, string>()
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => { saved.set(key, String(value)) },
+      removeItem: (key: string) => { saved.delete(key) },
+    })
+    overviewHooks.isolated = true
+    try {
+      const walk = (node: ReactNode): ReactElement<Record<string, unknown>>[] => Children.toArray(node).flatMap(child =>
+        isValidElement<Record<string, unknown>>(child) ? [child, ...walk(child.props.children as ReactNode)] : [])
+      const findSelect = (tree: ReactNode) => walk(tree).find(node => node.type === 'select' && node.props['aria-label'] === 'Choose fund')
+
+      const first = findSelect(VirtualFundPanel({ locale: 'en', nodes: [usd, hkd] }))
+      expect(first).toBeDefined()
+      expect(first!.props.value).toBe(usd.id)
+      ;(first!.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: hkd.id } })
+      expect(saved.get('dsh-finance.virtual-fund-selection.v1')).toBe(hkd.id)
+
+      const remounted = findSelect(VirtualFundPanel({ locale: 'en', nodes: [usd, hkd] }))
+      expect(remounted).toBeDefined()
+      expect(remounted!.props.value).toBe(hkd.id)
+    } finally {
+      overviewHooks.isolated = false
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('falls back to the first fund when the saved fund no longer exists', () => {
+    const usd = fundNode('portfolio:fund:usd', 'USD Fund', 'USD')
+    const hkd = fundNode('portfolio:fund:hkd', 'HKD Fund', 'HKD')
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => 'portfolio:fund:deleted',
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    })
+    overviewHooks.isolated = true
+    try {
+      const walk = (node: ReactNode): ReactElement<Record<string, unknown>>[] => Children.toArray(node).flatMap(child =>
+        isValidElement<Record<string, unknown>>(child) ? [child, ...walk(child.props.children as ReactNode)] : [])
+      const tree = VirtualFundPanel({ locale: 'en', nodes: [usd, hkd] })
+      const select = walk(tree).find(node => node.type === 'select' && node.props['aria-label'] === 'Choose fund')
+      expect(select).toBeDefined()
+      expect(select!.props.value).toBe(usd.id)
+    } finally {
+      overviewHooks.isolated = false
+      vi.unstubAllGlobals()
+    }
   })
 })

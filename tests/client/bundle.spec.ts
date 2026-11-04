@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 const ROOT = join(__dirname, '..', '..')
 
@@ -45,6 +46,8 @@ describe('client bundle', () => {
     const plugin = entry?.factory((spec: string) => {
       if (spec === 'react' || spec === 'react/jsx-runtime') return reactStub
       if (spec === '@deepseek-ai/dsh-client-ui-primitives') return { MarkdownText: () => null }
+      if (spec === '@deepseek-ai/cordis') return { Service: class { constructor(readonly ctx: unknown, readonly name: string) {} } }
+      if (spec === 'zod') return z
       throw new Error(`unexpected require: ${spec}`)
     })
     expect(typeof plugin?.['apply']).toBe('function')

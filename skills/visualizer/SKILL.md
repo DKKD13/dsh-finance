@@ -51,6 +51,16 @@ Write `{stem}-visual.html`, preserving the source report and its nearby assets.
 
 The HTML file is the visual artifact DSH can preview in its native document viewer. Do not assume it is embedded in a graph report.
 
+### Record the artifact on the deliverable
+
+When the report (or a visual summary deliverable) is committed to the research graph, put the HTML's workspace-relative path in the deliverable's metadata so the DSH report page can offer an entry that opens the host sidebar preview:
+
+```json
+"metadata": { "visualArtifact": "reports/<stem>-visual.html" }
+```
+
+Use the real relative path of the file just written. Never invent a path, use an absolute path or `file://` URL, or point `visualArtifact` at anything that is not the standalone HTML produced here. The report-reading UI validates the field and shows no entry when it is missing or unusable.
+
 ### 2. Markdown-native graph summary
 
 Write `{stem}-visual-summary.md` beside the HTML. This file must render with ordinary DSH Markdown and contain no raw HTML blocks.

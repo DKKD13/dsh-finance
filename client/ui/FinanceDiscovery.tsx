@@ -87,7 +87,7 @@ function validTimestamp(value: unknown): string | null {
   return timestamp !== null && Number.isFinite(Date.parse(timestamp)) ? timestamp : null
 }
 
-interface StoredQuoteEvidence {
+export interface StoredQuoteEvidence {
   readonly symbol: string
   readonly price: number
   readonly change: number | null
@@ -345,6 +345,20 @@ export function DiscoveryPanel({ kind, nodes, demo, locale, onOpenSymbol, onOpen
   const lookupSymbol = normalizedSearch !== null && !assets.some(asset => asset.symbol.toUpperCase() === normalizedSearch) ? normalizedSearch : null
   const chooseSector = (value: string) => { setSector(value); setExpandedSector(value) }
   const keyFor = (asset: DiscoveryAsset) => asset.node ? `node:${asset.node.id}` : `quote:${asset.symbol}`
+  const featuredAssets = useMemo(() => {
+    if (demo) return assets
+    const ranked = assets.map((asset, index) => ({ asset, index, quote: quoteFor(asset), history: historyFor(asset) }))
+      .sort((left, right) => {
+        const leftQuoted = left.quote !== undefined || left.asset.price !== null || left.asset.change !== null
+        const rightQuoted = right.quote !== undefined || right.asset.price !== null || right.asset.change !== null
+        if (leftQuoted !== rightQuoted) return Number(rightQuoted) - Number(leftQuoted)
+        const leftHistory = left.history !== undefined
+        const rightHistory = right.history !== undefined
+        if (leftHistory !== rightHistory) return Number(rightHistory) - Number(leftHistory)
+        return left.index - right.index
+      })
+    return ranked.map(entry => entry.asset)
+  }, [assets, demo])
   const sourceUrl = (node: GraphNode) => {
     const value = textValue(node.metadata.canonicalUrl) ?? textValue(record(node.metadata.provenance)?.canonicalUrl)
     if (value === null) return undefined
@@ -360,7 +374,7 @@ export function DiscoveryPanel({ kind, nodes, demo, locale, onOpenSymbol, onOpen
       return <li key={keyFor(asset)} data-node-id={asset.node?.id} data-quote-source-id={quote?.sourceId}>{asset.symbol} · {quote ? quoteLabel(quote) : `${text('标的记录', 'Instrument record')} · ${validTimestamp(asset.node?.metadata.availableAt) ?? validTimestamp(asset.node?.metadata.asOf) ?? text('日期未记录', 'Date not recorded')}`}{history && <span data-series-source-id={history.sourceId}> · {text('已存历史收盘', 'Saved historical closes')} {new Date(history.points[Math.max(0, history.points.length - 80)]!.time).toISOString()} – {new Date(history.points[history.points.length - 1]!.time).toISOString()}</span>}</li>
     })}</ul></details>}
     {kind === 'market' && <>
-      <div className="rg-discovery-tickers">{(demo ? INDICES : assets.slice(0, 4)).map((asset, index) => {
+      <div className="rg-discovery-tickers">{(demo ? INDICES : featuredAssets.slice(0, 4)).map((asset, index) => {
         const quote = quoteFor(asset)
         const history = historyFor(asset)
         return <button type="button" key={keyFor(asset)} title={`${asset.name} · ${asset.symbol}`} onClick={() => onOpenSymbol(asset.symbol)} data-node-id={asset.node?.id} data-quote-source-id={quote?.sourceId} data-quote-time={quote?.asOf}><span className="rg-discovery-ticker-identity"><AssetLogo symbol={asset.symbol}/><span><strong>{asset.symbol}</strong><small>{asset.name}</small></span></span><span className="rg-discovery-ticker-price">{priceNumber(asset.price)}{quote?.currency && <small>{quote.currency}</small>}</span><span className="rg-discovery-ticker-change" data-up={asset.change === null ? undefined : asset.change >= 0}>{percent(asset.change)}</span>{demo ? <Spark up={(asset.change ?? 0) >= 0} variant={index}/> : history ? <HistorySpark history={history}/> : <small className="rg-discovery-no-series">{text('尚无历史序列', 'No saved price history')}</small>}</button>

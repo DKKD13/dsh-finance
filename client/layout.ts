@@ -216,6 +216,94 @@ export function worldToScreen(viewport: Viewport, point: Point): Point {
   return { x: point.x * viewport.zoom + viewport.x, y: point.y * viewport.zoom + viewport.y }
 }
 
+/** Estimated on-screen box of one node label. Text is anchored at the origin's x and
+ * centered horizontally (text-anchor: middle), so the box extends width/2 on both sides. */
+export interface LabelBox {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
+/** One label candidate: lower priority labels yield first when boxes collide. */
+export interface LabelPlacement {
+  readonly id: string
+  readonly priority: number
+  readonly box: LabelBox
+}
+
+/**
+ * Estimate a label's screen box from its (already truncated) title. CJK glyphs
+ * are em-wide; Latin glyphs are roughly 0.56em. The box covers the glyph area
+ * above and below the baseline origin.
+ * @param origin - screen position of the text baseline origin (horizontal center of the label).
+ * @param title - rendered label text.
+ * @param fontSize - rendered font size in screen pixels.
+ */
+export function estimateLabelBox(origin: Point, title: string, fontSize: number): LabelBox {
+  let width = 0
+  for (const char of title) width += (char.codePointAt(0) ?? 0) > 0x2e7f ? fontSize : fontSize * 0.56
+  return { x: origin.x - width / 2, y: origin.y - fontSize, width, height: fontSize * 1.2 }
+}
+
+/**
+ * Selected and hovered labels are both pinned (never hidden by collision).
+ * When their boxes overlap, both would render on top of each other; lift the
+ * hovered label above its node so the selection stays put and both remain
+ * readable. Neighbor labels are unaffected — they still yield via
+ * {@link collidingLabels} — both pinned labels still render, so collision
+ * hiding never applies to them.
+ * @param placements - label candidates with screen-space boxes.
+ * @param selectedId - pinned selection node id, if any.
+ * @param hoveredId - pinned hover node id, if any.
+ * @param lift - vertical screen-space offset applied to the hovered label.
+ * @returns node ids mapped to their vertical label offset.
+ */
+export function pinnedLabelLift(
+  placements: readonly LabelPlacement[],
+  selectedId: string | null,
+  hoveredId: string | null,
+  lift: number,
+): Map<string, number> {
+  const offsets = new Map<string, number>()
+  if (selectedId === null || hoveredId === null || selectedId === hoveredId) return offsets
+  const selected = placements.find(placement => placement.id === selectedId)
+  const hovered = placements.find(placement => placement.id === hoveredId)
+  if (selected === undefined || hovered === undefined) return offsets
+  const overlaps = selected.box.x < hovered.box.x + hovered.box.width && selected.box.x + selected.box.width > hovered.box.x
+    && selected.box.y < hovered.box.y + hovered.box.height && selected.box.y + selected.box.height > hovered.box.y
+  if (overlaps) offsets.set(hoveredId, lift)
+  return offsets
+}
+
+/**
+ * Greedy label placement in screen space: higher priority first, then input
+ * order. A label is hidden when its padded box intersects an already kept box.
+ * Selected/hovered labels always win over neighbor labels.
+ * @param placements - label candidates with screen-space boxes.
+ * @param padding - extra clearance required around every kept label.
+ * @returns ids of labels that should not render.
+ */
+export function collidingLabels(placements: readonly LabelPlacement[], padding = 3): Set<string> {
+  const hidden = new Set<string>()
+  const kept: LabelBox[] = []
+  const ordered = placements.map((placement, index) => ({ placement, index }))
+    .sort((left, right) => right.placement.priority - left.placement.priority || left.index - right.index)
+  for (const { placement } of ordered) {
+    const box: LabelBox = {
+      x: placement.box.x - padding,
+      y: placement.box.y - padding,
+      width: placement.box.width + padding * 2,
+      height: placement.box.height + padding * 2,
+    }
+    const overlaps = kept.some(other => box.x < other.x + other.width && box.x + box.width > other.x
+      && box.y < other.y + other.height && box.y + box.height > other.y)
+    if (overlaps) hidden.add(placement.id)
+    else kept.push(box)
+  }
+  return hidden
+}
+
 /**
  * Fit every positioned node into one box with padding.
  * @param positions - node positions.

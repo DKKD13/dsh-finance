@@ -9,6 +9,7 @@
  */
 
 import type { GraphRequest, GraphResponse } from '../src/protocol.ts'
+import type { FinanceResponse } from '../src/finance/protocol.ts'
 import type { JsonValue } from '../src/graph.ts'
 
 /** Slash command the workbench dispatches through. */
@@ -29,6 +30,22 @@ export interface CommandsRemoteLike {
     line: string,
     attachments: readonly unknown[],
   ): Promise<RemoteResultLike<CommandExecutionLike | undefined>>
+}
+
+export interface ScheduleRecordLike {
+  readonly id: string
+  readonly title: string
+  readonly kind: string
+  readonly scheduledAt: string
+}
+
+export interface ScheduleRemoteLike {
+  list(request: { readonly sessionId: string }): Promise<RemoteResultLike<readonly ScheduleRecordLike[] | { readonly code: string; readonly message: string }>>
+}
+
+export interface FinanceWorkbenchRemoteLike {
+  graphSnapshot(): Promise<RemoteResultLike<GraphResponse>>
+  fundState(input: { readonly fundId?: string; readonly knownRevision?: number }): Promise<RemoteResultLike<FinanceResponse>>
 }
 
 /** Subset of the wire `RemoteResult` union. */
