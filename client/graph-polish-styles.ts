@@ -1,7 +1,7 @@
 /**
  * Local visual finish for the graph surface. Every color comes from the DSH
  * token layer; the stylesheet is imported by client/styles.ts.
- * @module dsh-research-graph/client/graph-polish-styles
+ * @module deepseek-harness-finance-plugin/client/graph-polish-styles
  */
 
 export const GRAPH_POLISH_STYLE = `

@@ -4,7 +4,7 @@
  * (the same module the Host `/finance guide` reads); this file only adds the
  * localized presentation copy, prompt-token substitution, and the live-graph
  * checks the browser can honestly perform.
- * @module dsh-research-graph/client/tutorial
+ * @module deepseek-harness-finance-plugin/client/tutorial
  */
 
 import type { GraphEdge, GraphNode } from '../src/graph.ts'

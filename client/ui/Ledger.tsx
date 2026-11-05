@@ -2,7 +2,7 @@
  * The ledger: the strip under the canvas listing every visible node, synced
  * with the canvas selection in both directions. Keyboard: up/down moves the
  * row focus, Enter selects.
- * @module dsh-research-graph/client/ui/Ledger
+ * @module deepseek-harness-finance-plugin/client/ui/Ledger
  */
 
 import { useEffect, useRef, useState } from 'react'

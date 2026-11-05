@@ -4,7 +4,7 @@
  * prompts and the demo payload; this file only translates the fields the
  * browser displays. Missing translations fall back to the canonical English
  * lesson rather than inventing a different course.
- * @module dsh-research-graph/client/tutorial-i18n
+ * @module deepseek-harness-finance-plugin/client/tutorial-i18n
  */
 
 import type { TutorialLesson } from '../shared/tutorials.ts'

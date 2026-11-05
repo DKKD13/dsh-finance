@@ -3,7 +3,7 @@
  * nudge on the Workflow home; dismissal is remembered locally and can be
  * replayed from the guide. Helpers accept a storage face so tests never touch
  * a real browser store.
- * @module dsh-research-graph/client/onboarding
+ * @module deepseek-harness-finance-plugin/client/onboarding
  */
 
 /** localStorage key for the dismissed Workflow-home guide banner. */

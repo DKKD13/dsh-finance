@@ -16,11 +16,11 @@
  * FINISH: unreviewed and undocumented is unfinished; this build ends with
  * the finish review, the verdict, and DESIGN.md.
  *
- * Browser half of `dsh-research-graph`: the sidebar entry and the full-page
+ * Browser half of `deepseek-harness-finance-plugin`: the sidebar entry and the full-page
  * workbench. React arrives through the shell module table (`require`), never
  * bundled; all graph traffic goes through the shared wire protocol by
  * executing `/research-graph <json>` on the active session's agent.
- * @module dsh-research-graph/client
+ * @module deepseek-harness-finance-plugin/client
  */
 
 import { useEffect, useSyncExternalStore } from 'react'
@@ -168,14 +168,14 @@ export function mountWorkbenchRemote(ctx: ClientShell): Promise<WorkbenchMount |
         context.effect(() => {
           resolve({ context, dispose })
           return dispose
-        }, 'dsh-research-graph: workbench Remote namespace')
+        }, 'deepseek-harness-finance-plugin: workbench Remote namespace')
       })
     })
   })().catch(() => undefined)
   ctx.effect(() => async () => {
     const mounted = await ready
     await mounted?.dispose()
-  }, 'dsh-research-graph: workbench Remote mount')
+  }, 'deepseek-harness-finance-plugin: workbench Remote mount')
   return ready
 }
 
@@ -261,7 +261,7 @@ function WorkbenchPageEntry({ t, workbench, finance, research, conversations, en
  * @param ctx - the shell context (structurally typed; the shell supplies it).
  */
 export function apply(ctx: ClientShell): void {
-  ctx.effect(() => ctx.locale.register(NS, dictionaries), 'dsh-research-graph: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, dictionaries), 'deepseek-harness-finance-plugin: dictionaries')
   const t = ctx.locale.bind(NS)
   const localeFace: LocaleFace = {
     getSnapshot: () => ctx.locale.getLocale?.().active ?? 'zh',
@@ -276,7 +276,7 @@ export function apply(ctx: ClientShell): void {
       name: 'conversation.chat.commandview',
       key: command,
       inject: () => ({ localeFace }),
-    }, ResearchCommandEntry)) as (() => void) | void, `dsh-research-graph: ${command} command view`)
+    }, ResearchCommandEntry)) as (() => void) | void, `deepseek-harness-finance-plugin: ${command} command view`)
   }
   // Own-tool process views: the keyed tool.call.toolview slot renders these
   // instead of the generic tool row. Registration mirrors the command view
@@ -286,7 +286,7 @@ export function apply(ctx: ClientShell): void {
       name: 'tool.call.toolview',
       key: tool,
       inject: () => ({ localeFace }),
-    }, FinanceToolViewEntry)) as (() => void) | void, `dsh-research-graph: ${tool} tool view`)
+    }, FinanceToolViewEntry)) as (() => void) | void, `deepseek-harness-finance-plugin: ${tool} tool view`)
   }
 
   // Probe the host's sidebar-right navigator so panel buttons (e.g. the HTML
@@ -296,17 +296,17 @@ export function apply(ctx: ClientShell): void {
     navigation.effect(() => {
       registerHostNavigator(createHostNavigator(navigation))
       return () => { registerHostNavigator(undefined) }
-    }, 'dsh-research-graph: host navigator')
+    }, 'deepseek-harness-finance-plugin: host navigator')
   })
 
   ctx.effect(() => {
     if (typeof document === 'undefined') return
     const style = document.createElement('style')
-    style.dataset.plugin = 'dsh-research-graph'
+    style.dataset.plugin = 'deepseek-harness-finance-plugin'
     style.textContent = STYLE_TEXT
     document.head.append(style)
     return () => { style.remove() }
-  }, 'dsh-research-graph: styles')
+  }, 'deepseek-harness-finance-plugin: styles')
 
   const workbench = mountWorkbenchRemote(ctx)
   const graphGateway = new RemoteGraphGateway(ctx, workbench)
@@ -317,7 +317,7 @@ export function apply(ctx: ClientShell): void {
     scheduleContext.effect(() => {
       finance.setScheduleReader(scheduleContext.remote.schedule)
       return () => { finance.setScheduleReader(undefined) }
-    }, 'dsh-research-graph: schedule reader')
+    }, 'deepseek-harness-finance-plugin: schedule reader')
   })
   const research = new ResearchStore(graphGateway, new RemoteSessionPromptGateway(ctx, graphGateway), () => store.loadIfChanged())
   const conversations = ctx.conversation && ctx.uiWorkspace && ctx.workspaces ? createConversationGateway({
@@ -348,7 +348,7 @@ export function apply(ctx: ClientShell): void {
     }
     activateActive()
     return ctx.layout?.panelInfo.subscribe(activateActive)
-  }, 'dsh-research-graph: panel activation')
+  }, 'deepseek-harness-finance-plugin: panel activation')
 
   // A dropped connection invalidates the snapshot; reload on reset.
   ctx.on('connection/reset', () => { void store.refresh(); void finance.refresh() })
@@ -383,6 +383,6 @@ export function apply(ctx: ClientShell): void {
         if (typeof disposeSidebar === 'function') (disposeSidebar as () => void)()
         if (typeof disposeMain === 'function') (disposeMain as () => void)()
       }
-    }, `dsh-research-graph: ${entry.id}`)
+    }, `deepseek-harness-finance-plugin: ${entry.id}`)
   }
 }

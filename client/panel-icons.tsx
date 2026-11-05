@@ -2,7 +2,7 @@
  * Sidebar glyphs for the plugin's global panels. Every icon is one 18×18
  * single-stroke drawing in the shell's icon grammar, so the finance entries
  * read as siblings of the existing graph glyph rather than a second icon set.
- * @module dsh-research-graph/client/panel-icons
+ * @module deepseek-harness-finance-plugin/client/panel-icons
  */
 
 export interface PanelIconProps {

@@ -63,14 +63,14 @@ DSH Finance 把市场、研究 Skills、资料、观点和模拟基金放进同�
 
 npm 是 JavaScript 的包管理器与包仓库。`npm install` 负责把插件代码及其依赖安装到 Node 项目；它不会启动 DSH、配置模型或激活插件。`dsh plugin add` 才负责把同一个包加入 DSH profile。二者使用相同版本的安装包，但作用不同。
 
-当前包名为 `dsh-research-graph`，使用 `preview` 预发布标签：
+当前包名为 `deepseek-harness-finance-plugin`，使用 `preview` 预发布标签：
 
 ```sh
-npm install dsh-research-graph@preview
-dsh plugin --profile web add dsh-research-graph@preview
+npm install deepseek-harness-finance-plugin@preview
+dsh plugin --profile web add deepseek-harness-finance-plugin@preview
 ```
 
-`preview` 指向当前候选版本，不修改 npm 的 `latest` 稳定通道。安装后可运行 `npm view dsh-research-graph dist-tags` 核对标签，或 `npm list dsh-research-graph` 核对实际安装版本。
+`preview` 指向当前候选版本，不修改 npm 的 `latest` 稳定通道。安装后可运行 `npm view deepseek-harness-finance-plugin dist-tags` 核对标签，或 `npm list deepseek-harness-finance-plugin` 核对实际安装版本。
 
 已有公开预览版可直接从 Release 安装：
 
@@ -84,7 +84,7 @@ dsh plugin --profile web add https://github.com/DKKD13/dsh-finance/releases/down
 已有 `.tgz` 安装包时，直接安装到 DSH Web profile，无需解压：
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-research-graph-<version>.tgz
+dsh plugin --profile web add /absolute/path/to/deepseek-harness-finance-plugin-<version>.tgz
 ```
 
 从源码生成并安装：
@@ -96,7 +96,7 @@ PACKAGE=$(npm pack --silent)
 dsh plugin --profile web add "$PWD/$PACKAGE"
 ```
 
-普通 Node 项目也可以使用 `npm install /absolute/path/to/dsh-research-graph-<version>.tgz`，但该命令不会替 DSH 激活插件。完整的安装、升级与兼容说明见 [npm 安装与激活说明](docs/guides/npm-install.md)。
+普通 Node 项目也可以使用 `npm install /absolute/path/to/deepseek-harness-finance-plugin-<version>.tgz`，但该命令不会替 DSH 激活插件。完整的安装、升级与兼容说明见 [npm 安装与激活说明](docs/guides/npm-install.md)。
 
 ### 插件与 DSH 如何一起升级
 
@@ -139,8 +139,8 @@ dsh plugin --profile web add "$PWD/$PACKAGE"
 
 ```yaml
 - insert:
-    - id: dsh-research-graph
-      name: dsh-research-graph
+    - id: deepseek-harness-finance-plugin
+      name: deepseek-harness-finance-plugin
       config:
         autoIndexSkills: true
         writeMirror: false

@@ -2,7 +2,7 @@
  * Audit mode: the integrity report — broken edges, dangling metadata
  * references, unresolved import targets, and orphan nodes — with
  * click-through to the affected node on the canvas.
- * @module dsh-research-graph/client/ui/AuditPanel
+ * @module deepseek-harness-finance-plugin/client/ui/AuditPanel
  */
 
 import { useWorkbench } from './common.ts'

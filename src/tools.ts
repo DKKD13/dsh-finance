@@ -2,7 +2,7 @@
  * Model-facing agent tools over the research-graph service. Every tool is a
  * thin adapter onto {@link executeGraphRequest}, so tool and UI behavior can
  * never drift apart.
- * @module dsh-research-graph/tools
+ * @module deepseek-harness-finance-plugin/tools
  */
 
 import type { Context } from '@deepseek-ai/cordis'

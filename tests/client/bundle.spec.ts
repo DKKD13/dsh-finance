@@ -17,10 +17,10 @@ interface RegisteredModule {
 }
 
 describe('client bundle', () => {
-  it('registers as dsh-research-graph with platform externals only', () => {
+  it('registers as deepseek-harness-finance-plugin with platform externals only', () => {
     execFileSync('node', [join(ROOT, 'scripts', 'build-client.mjs')], { cwd: ROOT, stdio: 'pipe' })
     const code = readFileSync(join(ROOT, 'dist', 'client.js'), 'utf8')
-    expect(code.startsWith('window.__ModuleLoader__.load({ id: "dsh-research-graph"')).toBe(true)
+    expect(code.startsWith('window.__ModuleLoader__.load({ id: "deepseek-harness-finance-plugin"')).toBe(true)
     expect(code).toContain('require("react")')
     expect(code).toContain('require("react/jsx-runtime")')
     expect(code).toContain('require("@deepseek-ai/dsh-client-ui-primitives")')
@@ -41,7 +41,7 @@ describe('client bundle', () => {
     }
     expect(registered).toHaveLength(1)
     const entry = registered[0]
-    expect(entry?.id).toBe('dsh-research-graph')
+    expect(entry?.id).toBe('deepseek-harness-finance-plugin')
     const reactStub = new Proxy({}, { get: () => () => null })
     const plugin = entry?.factory((spec: string) => {
       if (spec === 'react' || spec === 'react/jsx-runtime') return reactStub

@@ -1,10 +1,10 @@
 # 使用 npm 包安装 DSH Finance
 
-本项目的 npm 包名是 `dsh-research-graph`，公开发布使用 `preview` 预发布标签：
+本项目的 npm 包名是 `deepseek-harness-finance-plugin`，公开发布使用 `preview` 预发布标签：
 
 ```sh
-npm install dsh-research-graph@preview
-dsh plugin --profile web add dsh-research-graph@preview
+npm install deepseek-harness-finance-plugin@preview
+dsh plugin --profile web add deepseek-harness-finance-plugin@preview
 ```
 
 第一条把包加入 Node 项目，第二条将包加入 DSH profile 并激活插件。`preview` 不替代 npm 默认的 `latest` 稳定通道，也不代表自动更新或自动兼容未来的 DSH。
@@ -23,13 +23,13 @@ dsh plugin --profile web add https://github.com/DKKD13/dsh-finance/releases/down
 普通 Node 项目可以这样安装 `.tgz`：
 
 ```sh
-npm install /absolute/path/to/dsh-research-graph-<version>.tgz
+npm install /absolute/path/to/deepseek-harness-finance-plugin-<version>.tgz
 ```
 
 这只把包及其依赖加入当前 Node 项目，**不会替 DSH 激活插件**。实际使用 DSH Finance，请将同一个 `.tgz` 安装到 DSH Web profile：
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-research-graph-<version>.tgz
+dsh plugin --profile web add /absolute/path/to/deepseek-harness-finance-plugin-<version>.tgz
 ```
 
 不需要先解压。`web` 是 DSH 自带的 Web profile 名称；首次使用时，宿主会初始化基础层和 Web 客户端，再加入插件。已有自定义 profile 时，将 `web` 换成你的 profile 名称。

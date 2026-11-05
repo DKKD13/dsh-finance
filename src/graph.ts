@@ -4,7 +4,7 @@
  *
  * This module is free of runtime dependencies beyond the types below so the
  * graph rules stay testable without a Cordis context.
- * @module dsh-research-graph/graph
+ * @module deepseek-harness-finance-plugin/graph
  */
 
 /** Lossless JSON value, the only shape allowed in durable graph data. */

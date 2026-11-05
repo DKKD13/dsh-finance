@@ -58,7 +58,7 @@ async function compose(config: Record<string, unknown>): Promise<Harness & { dir
   return { app, tools, runCommand, events, dir: temp.dir, skillsRoot }
 }
 
-describe('dsh-research-graph host plugin', () => {
+describe('deepseek-harness-finance-plugin host plugin', () => {
   it('mounts the shared service and runs the first skills import', async () => {
     const { app, dir } = await compose({})
     expect(app.researchGraph).toBeDefined()
@@ -79,7 +79,7 @@ describe('dsh-research-graph host plugin', () => {
     expect(names).toContain('beta-skill')
     expect(names).toContain('gamma-persona')
     const alpha = skills.find(skill => skill.name === 'alpha-skill')
-    expect(alpha?.provider).toBe('dsh-research-graph')
+    expect(alpha?.provider).toBe('deepseek-harness-finance-plugin')
     expect(alpha?.source).toBe('bundled')
     const definition = await app.skills.get('alpha-skill')
     expect(definition?.content).toContain('# Alpha')

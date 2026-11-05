@@ -1,7 +1,7 @@
 /**
  * Shared view helpers: the store subscription hook and the common prop face
  * every workbench component receives.
- * @module dsh-research-graph/client/ui/common
+ * @module deepseek-harness-finance-plugin/client/ui/common
  */
 
 import { useSyncExternalStore } from 'react'

@@ -2,7 +2,7 @@
  * Recursive discovery and classification of bundled skills: finds directory
  * `SKILL.md` entrypoints and standalone Markdown files with skill frontmatter,
  * including nested personas, and classifies resources without double ownership.
- * @module dsh-research-graph/skills
+ * @module deepseek-harness-finance-plugin/skills
  */
 
 import { readdir, readFile } from 'node:fs/promises'

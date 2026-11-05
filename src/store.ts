@@ -6,7 +6,7 @@
  * - `graph.json` — the single durable document (nodes, edges, history).
  * - `graph.json.tmp-<pid>` — transient atomic-write staging file.
  * - `mirror/` — optional Markdown mirror written when enabled.
- * @module dsh-research-graph/store
+ * @module deepseek-harness-finance-plugin/store
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -122,7 +122,7 @@ function migrate(raw: unknown): ParsedFile {
   if (version > GRAPH_SCHEMA_VERSION) {
     throw new GraphError(
       'STORE_VERSION_AHEAD',
-      `graph file schema version ${version} is newer than supported version ${GRAPH_SCHEMA_VERSION}; upgrade dsh-research-graph`,
+      `graph file schema version ${version} is newer than supported version ${GRAPH_SCHEMA_VERSION}; upgrade deepseek-harness-finance-plugin`,
     )
   }
   const nodes = raw.nodes

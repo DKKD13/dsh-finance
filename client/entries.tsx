@@ -4,7 +4,7 @@
  * research-graph entry keeps the original workbench; the five finance entries
  * open the same shared stores at a different mode and section, so switching
  * entries never creates a second graph or finance store.
- * @module dsh-research-graph/client/entries
+ * @module deepseek-harness-finance-plugin/client/entries
  */
 
 import type { ComponentType } from 'react'

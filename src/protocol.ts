@@ -1,5 +1,5 @@
 /**
- * Stable command request/response protocol of `dsh-research-graph`.
+ * Stable command request/response protocol of `deepseek-harness-finance-plugin`.
  *
  * The same dispatcher backs the agent tools (`research_graph_*`) and the
  * `/research-graph` slash command (JSON mode: the command line is one JSON
@@ -9,7 +9,7 @@
  *
  * Request validation lives here at this wire boundary; every failure is a
  * structured `{ ok: false, error: { code, message } }`, never a throw.
- * @module dsh-research-graph/protocol
+ * @module deepseek-harness-finance-plugin/protocol
  */
 
 import { GraphError, isEdgeKind, isNodeKind } from './graph.ts'

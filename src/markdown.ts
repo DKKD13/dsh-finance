@@ -1,7 +1,7 @@
 /**
  * Markdown and frontmatter parsing for skill imports: YAML frontmatter,
  * inline links, `READ` reference markers, and skill dependency fields.
- * @module dsh-research-graph/markdown
+ * @module deepseek-harness-finance-plugin/markdown
  */
 
 import yaml from 'js-yaml'
