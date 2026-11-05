@@ -245,7 +245,19 @@ afterAll(async () => {
   socket?.close()
   await stop(chrome)
   await stop(server)
-  if (profile.length > 0) await rm(profile, { recursive: true, force: true })
+  if (profile.length > 0) {
+    // Chrome can finish cache writes shortly after its parent exits on CI.
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        await rm(profile, { recursive: true, force: true })
+        break
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if ((code !== 'ENOTEMPTY' && code !== 'EBUSY') || attempt === 9) throw error
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    }
+  }
 
 })
 
