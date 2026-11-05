@@ -4,7 +4,7 @@
  * live SVG workflow route, steps that name real sections, copyable prompts and
  * the one public demo Clip. Nothing here writes to the graph or starts a model
  * run; the only actions are copy, section navigation, and opening a record.
- * @module dsh-research-graph/client/ui/GuidePanel
+ * @module deepseek-harness-finance-plugin/client/ui/GuidePanel
  */
 
 import { useEffect, useRef, useState } from 'react'

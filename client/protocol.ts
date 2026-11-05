@@ -5,7 +5,7 @@
  * {@link GraphResponse} union — the same wire shape the host's tools and
  * slash command speak (`src/protocol.ts`). Nothing here mocks graph data:
  * every answer comes from an executed command.
- * @module dsh-research-graph/client/protocol
+ * @module deepseek-harness-finance-plugin/client/protocol
  */
 
 import type { GraphRequest, GraphResponse } from '../src/protocol.ts'

@@ -172,7 +172,7 @@ export class SafeHttp {
             signal: controller.signal,
             headers: {
               accept: options.accept ?? 'application/json, application/xml, text/xml, text/plain;q=0.8',
-              'user-agent': options.userAgent ?? 'dsh-research-graph/0.1 public-research',
+              'user-agent': options.userAgent ?? 'deepseek-harness-finance-plugin/0.1 public-research',
             },
           })
         } catch {

@@ -3,7 +3,7 @@
  * removal confirmation. All are fixed overlays with `role="dialog"`, Escape
  * to close, and submit through the store's wire actions; a failed submit
  * keeps the dialog open with the error surfaced by the store's notice.
- * @module dsh-research-graph/client/ui/Dialogs
+ * @module deepseek-harness-finance-plugin/client/ui/Dialogs
  */
 
 import { useEffect, useRef, useState } from 'react'

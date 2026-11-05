@@ -6,7 +6,7 @@
  * - `ctx.conversation.input` initializes drafts on those retained bindings.
  * - `ctx.uiWorkspace` owns the `mainView` retention that selects the native
  *   Conversation and returns the center panel to it.
- * @module dsh-research-graph/client/conversations
+ * @module deepseek-harness-finance-plugin/client/conversations
  */
 
 export interface ConversationSummaryLike<Id extends string = string> {

@@ -2,7 +2,7 @@
  * Graph geometry for the workbench canvas: a deterministic force layout that
  * preserves user-placed positions, viewport math for pan/zoom, and neighbor
  * computation. Pure and DOM-free so every rule is unit-testable.
- * @module dsh-research-graph/client/layout
+ * @module deepseek-harness-finance-plugin/client/layout
  */
 
 import type { GraphEdge, GraphNode } from '../src/graph.ts'

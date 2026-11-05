@@ -23,7 +23,7 @@
 
 6. 等待插件管理器报告实际安装、激活结果，再打开侧栏的“金融”。请保留安装目录，不要安装后将它移入废纸篓。
 
-从源码构建时，先运行 `npm ci && npm run build`，再用 `PACKAGE=$(npm pack --silent)` 取得实际包名，最后执行 `dsh plugin --profile web add "$PWD/$PACKAGE"`。完整的 npm 与本地包安装说明见 [npm 安装](npm-install.md)。使用预发布标签时可执行 `dsh plugin --profile web add dsh-research-graph@preview`，再用 `npm list dsh-research-graph` 核对实际安装版本。
+从源码构建时，先运行 `npm ci && npm run build`，再用 `PACKAGE=$(npm pack --silent)` 取得实际包名，最后执行 `dsh plugin --profile web add "$PWD/$PACKAGE"`。完整的 npm 与本地包安装说明见 [npm 安装](npm-install.md)。使用预发布标签时可执行 `dsh plugin --profile web add deepseek-harness-finance-plugin@preview`，再用 `npm list deepseek-harness-finance-plugin` 核对实际安装版本。
 
 本说明沿用宿主已有的插件安装方式；**发布流程仍未完成安装包在全新原生 DSH 中从安装到研究产物的完整验收**。若安装失败，请记录宿主给出的错误，不要通过关闭认证或修改数据库来绕过。
 

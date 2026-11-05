@@ -1,9 +1,9 @@
 /**
- * Host entry of the `dsh-research-graph` bundle. Mounts the
+ * Host entry of the `deepseek-harness-finance-plugin` bundle. Mounts the
  * `ctx.researchGraph` and `ctx.finance` services, registers bundled skills,
  * four research tools plus six finance tools, both slash commands, and
  * (unless disabled) runs the first skills import once the store is reachable.
- * @module dsh-research-graph
+ * @module deepseek-harness-finance-plugin
  */
 
 import { fileURLToPath } from 'node:url'
@@ -22,7 +22,7 @@ import { FinanceWorkbenchRemote } from './finance/remote.ts'
 import { FINANCE_WORKBENCH_TYPERT } from './finance/remote-contract.ts'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 
-export const name = 'dsh-research-graph'
+export const name = 'deepseek-harness-finance-plugin'
 export const inject = ['skills', 'tools', 'commands']
 
 export type { GraphRequest, GraphResponse, GraphSuccess, GraphFailure, GraphOp } from './protocol.ts'
@@ -106,14 +106,14 @@ function defaultSkillsRoot(): string {
 export function apply(ctx: Context, config: ResearchGraphConfig): void {
   const resolved = resolveConfig(config, defaultSkillsRoot())
   const graph = new ResearchGraphService(ctx, resolved)
-  ctx.effect(() => registerSkillsProvider(ctx, resolved.skillsRoot), 'dsh-research-graph: skills provider')
+  ctx.effect(() => registerSkillsProvider(ctx, resolved.skillsRoot), 'deepseek-harness-finance-plugin: skills provider')
   const finance = new FinanceService(ctx, graph, resolved)
   new FinanceWorkbenchRemote(ctx, graph, finance)
   ctx.inject(['typert'], typertContext => {
     typertContext.effect(() => {
       const registration = typertContext.typert.register(FINANCE_WORKBENCH_TYPERT)
       return async () => { (await registration)() }
-    }, 'dsh-research-graph: workbench Remote')
+    }, 'deepseek-harness-finance-plugin: workbench Remote')
   })
   registerGraphTools(ctx, graph)
   registerGraphCommand(ctx, graph)
@@ -123,15 +123,15 @@ export function apply(ctx: Context, config: ResearchGraphConfig): void {
     const clipperHttp = new ClipperHttpServer(finance, resolved.clipperHttp)
     ctx.effect(async () => {
       const address = await clipperHttp.start()
-      ctx.logger.info(`dsh-research-graph: Clipper loopback importer listening at ${address.url}`)
+      ctx.logger.info(`deepseek-harness-finance-plugin: Clipper loopback importer listening at ${address.url}`)
       return async () => { await clipperHttp.stop() }
-    }, 'dsh-research-graph: Clipper loopback HTTP')
+    }, 'deepseek-harness-finance-plugin: Clipper loopback HTTP')
   }
   if (resolved.autoIndexSkills) {
     graph.initialImport = graph.rebuildFromSkills().then(
       () => undefined,
       (error: unknown) => {
-        ctx.logger.warn(`dsh-research-graph: initial skills import failed: ${error instanceof Error ? error.message : String(error)}`)
+        ctx.logger.warn(`deepseek-harness-finance-plugin: initial skills import failed: ${error instanceof Error ? error.message : String(error)}`)
       },
     )
   }

@@ -2,7 +2,7 @@
  * Node inspector: the selected node's full record, its outgoing edges and
  * backlinks with per-edge removal, and the entry points for editing,
  * deleting, and linking. All mutations run through the store's wire actions.
- * @module dsh-research-graph/client/ui/Inspector
+ * @module deepseek-harness-finance-plugin/client/ui/Inspector
  */
 
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'

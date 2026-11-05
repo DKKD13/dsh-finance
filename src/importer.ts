@@ -5,7 +5,7 @@
  * and declared dependencies into edges. A rebuild is a full sync of the
  * import-managed subgraph recorded as at most one revision; hand-made nodes and
  * edges are never touched.
- * @module dsh-research-graph/importer
+ * @module deepseek-harness-finance-plugin/importer
  */
 
 import { readFile } from 'node:fs/promises'

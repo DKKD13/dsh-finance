@@ -25,7 +25,7 @@ import { VIRTUAL_FUND_OVERVIEW_STYLE } from './virtual-fund-overview-styles.ts'
  * the page follows the DSH theme (light and dark) exactly; the only custom
  * values are the categorical node-kind accents, mapped onto the shell's
  * static hue families.
- * @module dsh-research-graph/client/styles
+ * @module deepseek-harness-finance-plugin/client/styles
  */
 
 export const STYLE_TEXT = `

@@ -3,7 +3,7 @@
  * when the shell grants it; a hidden textarea + execCommand is the fallback for
  * local shells and older browsers. Both paths are injectable for tests, and the
  * DOM faces are structural so this module also type-checks in the Node program.
- * @module dsh-research-graph/client/clipboard
+ * @module deepseek-harness-finance-plugin/client/clipboard
  */
 
 export interface ClipboardFace {

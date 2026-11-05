@@ -425,7 +425,7 @@ export class FinanceDataPlane {
     if (this.config.secContact === undefined) {
       throw new GraphError('NOT_CONFIGURED', 'SEC requires secContact in the plugin configuration; no request was made')
     }
-    return { userAgent: `dsh-research-graph/0.1 ${this.config.secContact}` }
+    return { userAgent: `deepseek-harness-finance-plugin/0.1 ${this.config.secContact}` }
   }
 
   private async secTickerData(): Promise<{ payload: Awaited<ReturnType<SafeHttp['request']>>; entries: Record<string, unknown>[] }> {

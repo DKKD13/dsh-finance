@@ -3,7 +3,7 @@
  * inspection and explicit from/to range replay. Selecting a revision shows
  * its own change; the range controls diff any admitted interval. Diff entries
  * that still exist link back to the node on the canvas.
- * @module dsh-research-graph/client/ui/HistoryPanel
+ * @module deepseek-harness-finance-plugin/client/ui/HistoryPanel
  */
 
 import { useState } from 'react'

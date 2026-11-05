@@ -3,7 +3,7 @@
  * and every graph read/write dispatched through the shared wire protocol via
  * a {@link GraphGateway}. The React tree only subscribes and calls actions,
  * so all state transitions are unit-testable without a DOM.
- * @module dsh-research-graph/client/store
+ * @module deepseek-harness-finance-plugin/client/store
  */
 
 import type { GraphRequest, GraphResponse } from '../src/protocol.ts'

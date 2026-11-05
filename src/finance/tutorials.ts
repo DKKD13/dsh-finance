@@ -3,7 +3,7 @@
  * imports, DOM or Node APIs, so the Host command and the browser bundle share
  * one source of truth. Every lesson step names a section that really exists in
  * the workspace, and every prompt is display-only — nothing here is executed.
- * @module dsh-research-graph/finance/tutorials
+ * @module deepseek-harness-finance-plugin/finance/tutorials
  */
 
 /** Sections rendered by the finance workspace, in navigation order. */

@@ -1,7 +1,7 @@
 /**
  * The workbench's own dictionary namespace (`researchGraph`), registered with
  * the shell locale service. zh is the authoring language; en mirrors it.
- * @module dsh-research-graph/client/locales
+ * @module deepseek-harness-finance-plugin/client/locales
  */
 
 export const en = {

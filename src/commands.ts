@@ -4,7 +4,7 @@
  * answered with one JSON {@link GraphResponse}) for programmatic callers such
  * as the Client through `ctx.remote.commands.execute`, and a small
  * human-readable grammar for interactive use.
- * @module dsh-research-graph/commands
+ * @module deepseek-harness-finance-plugin/commands
  */
 
 import type { Context } from '@deepseek-ai/cordis'

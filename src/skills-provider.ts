@@ -3,7 +3,7 @@
  * skill with the Harness registry, including nested persona skills.
  * Discovery re-reads the filesystem
  * on every catalog collect; bodies are read fresh on `get()`.
- * @module dsh-research-graph/skills-provider
+ * @module deepseek-harness-finance-plugin/skills-provider
  */
 
 import { readFile } from 'node:fs/promises'
@@ -15,7 +15,7 @@ import { discoverSkills } from './skills.ts'
 import type { DiscoveredSkill } from './skills.ts'
 
 /** Provider name reported to the skill registry. */
-export const SKILLS_PROVIDER_NAME = 'dsh-research-graph'
+export const SKILLS_PROVIDER_NAME = 'deepseek-harness-finance-plugin'
 
 interface SkillLocator {
   readonly file: string

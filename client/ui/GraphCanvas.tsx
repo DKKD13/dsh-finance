@@ -4,7 +4,7 @@
  * highlight on hover/selection, and edge click for the relation popover.
  * All geometry math lives in `../layout.ts`; this component only wires
  * pointer intent to store actions.
- * @module dsh-research-graph/client/ui/GraphCanvas
+ * @module deepseek-harness-finance-plugin/client/ui/GraphCanvas
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'

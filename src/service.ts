@@ -3,7 +3,7 @@
  * agent tools and the slash command. Owns the store lifecycle, emits
  * `research-graph/change` after every effective mutation, and optionally keeps
  * a Markdown mirror of the graph on disk.
- * @module dsh-research-graph/service
+ * @module deepseek-harness-finance-plugin/service
  */
 
 import { homedir } from 'node:os'

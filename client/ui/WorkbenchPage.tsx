@@ -3,7 +3,7 @@
  * actions), the filter rail, and the mode body — the map-over-ledger split
  * for graph work, the timeline for history, the report for audit. Loading,
  * error, empty, and notice states live here.
- * @module dsh-research-graph/client/ui/WorkbenchPage
+ * @module deepseek-harness-finance-plugin/client/ui/WorkbenchPage
  */
 
 import { useEffect } from 'react'
