@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { GraphEdge, GraphNode } from '../../src/graph.ts'
 import type { FinanceSection, FinanceStore } from '../finance-store.ts'
 import type { Translate } from '../store.ts'
-import { useFinance } from './FinanceCommon.tsx'
+import { formatNumber, useFinance } from './FinanceCommon.tsx'
 import { BriefingPanel, PredictionsPanel } from './FinanceMemory.tsx'
 import { PortfolioPanel, ValuationsPanel } from './FinanceModels.tsx'
 import { MarketPanel, OverviewPanel } from './FinancePanels.tsx'
@@ -14,7 +14,7 @@ import { ReportsPanel } from './ReportsPanel.tsx'
 import { GuidePanel } from './GuidePanel.tsx'
 import { deriveWorkflow } from '../workflow.ts'
 import type { ResearchStore } from '../research-store.ts'
-import { DiscoveryPanel, discoveryDemoAssets, discoveryDemoCrypto, discoveryRecords } from './FinanceDiscovery.tsx'
+import { DiscoveryPanel, discoveryDemoAssets, discoveryDemoCrypto, discoveryRecords, storedQuoteEvidence } from './FinanceDiscovery.tsx'
 import { ScreenerPanel, PoliticiansPanel } from './FinanceScreening.tsx'
 import { EarningsPanel, PredictionMarketsPanel } from './FinanceEvents.tsx'
 import { WorkflowCatalog } from './FinanceCatalog.tsx'
@@ -63,7 +63,8 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
   readonly onOpenHistory?: (() => void) | undefined
 }) {
   const state = useFinance(store)
-  const readFundState = useCallback((fundId?: string) => store.readFundState(fundId), [store])
+  const readFundState = useCallback((fundId?: string, knownRevision?: number) => store.readFundState(fundId, knownRevision), [store])
+  const readSchedules = useCallback((sessionId: string) => store.readSchedules(sessionId), [store])
   const assetPage = state.section === 'market'
   const marketGroup = MARKET_SECTIONS.includes(state.section)
   const primarySection = marketGroup || state.section === 'market' ? 'markets' : state.section === 'apps' ? 'overview' : state.section === 'portfolio' ? 'virtual-fund' : state.section
@@ -100,8 +101,18 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
   useEffect(() => { if (shareOpen) shareDialog.current?.showModal() }, [shareOpen])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchIndex, setSearchIndex] = useState(-1)
-  const assetMatches = (demo ? [...discoveryDemoAssets, ...discoveryDemoCrypto] : [...discoveryRecords(nodes, false), ...discoveryRecords(nodes, true)])
-    .filter(asset => `${asset.symbol} ${asset.name}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).slice(0, 7)
+  const assetMatches = useMemo(() => {
+    const matches = (demo ? [...discoveryDemoAssets, ...discoveryDemoCrypto] : [...discoveryRecords(nodes, false), ...discoveryRecords(nodes, true)])
+      .filter(asset => `${asset.symbol} ${asset.name}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).slice(0, 7)
+    if (demo) return matches
+    const quotes = storedQuoteEvidence(nodes)
+    return matches.map(asset => {
+      if (asset.price !== null || asset.change !== null) return asset
+      const quote = quotes.get(asset.symbol.toUpperCase())
+      return quote === undefined ? asset : { ...asset, price: quote.price, change: quote.change }
+    })
+  }, [demo, nodes, query])
+  const searchPrice = (value: number | null) => value === null ? '—' : Number.isFinite(value) && Math.abs(value) < 1 ? formatNumber(value) : value.toLocaleString(undefined, { maximumFractionDigits: 2 })
   const assetSymbol = state.market.quote?.symbol || state.market.history?.symbol || activeSymbol || ''
   const quoteResult = state.operations.quote?.result
   const quoteData = readQuote(quoteResult)
@@ -129,7 +140,11 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
       if (result.status === 'preserved') store.flash(text('已保留原对话草稿。请在对话中继续。', 'The existing draft was preserved. Continue in the conversation.'))
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
-      store.flash(message === 'DSH_WORKSPACE_REQUIRED' ? text('请先在 DSH 添加一个工作区，再开始研究。', 'Add a workspace in DSH before starting research.') : message === 'CONVERSATION_BLOCKED' ? text('这个对话暂时不能接收输入，请稍后重试。', 'This conversation cannot receive input right now. Try again shortly.') : text('未能进入对话：', 'Could not open the conversation: ') + message)
+      store.flash(message === 'DSH_WORKSPACE_REQUIRED'
+        ? sessionId
+          ? text('原会话不可用，且当前没有可用工作区。请先在 DSH 添加工作区，再在新对话中保留原会话引用继续；尚未创建计划。', 'The original conversation is unavailable and no workspace is selected. Add a workspace to continue in a new conversation with the original reference. No schedule has been created.')
+          : text('请先在 DSH 添加一个工作区，再开始研究。', 'Add a workspace in DSH before starting research.')
+        : message === 'CONVERSATION_BLOCKED' ? text('这个对话暂时不能接收输入，请稍后重试。', 'This conversation cannot receive input right now. Try again shortly.') : text('未能进入对话：', 'Could not open the conversation: ') + message, 'error')
     } finally { launchPending.current = false }
   }
   const openResearch = (value: string, skillName?: string, skillContext?: Pick<ConversationSeed, 'ticker' | 'sourceIds' | 'asOf' | 'sourceSummaryId'>) => {
@@ -229,9 +244,9 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
             else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setSearchOpen(true); setSearchIndex(index => !assetMatches.length ? -1 : index < 0 ? event.key === 'ArrowDown' ? 0 : assetMatches.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + assetMatches.length) % assetMatches.length) }
             else if (event.key === 'Enter' && searchOpen && searchIndex >= 0 && assetMatches[searchIndex]) { event.preventDefault(); const asset = assetMatches[searchIndex]; setSearchOpen(false); setQuery(''); openSymbol(asset.symbol) }
           }} aria-label={text('搜索股票、公司或工作流', 'Search stocks, companies or workflows')} placeholder={text('搜索股票、加密货币等…', 'Search stocks, crypto and more…')} />
-          {query && <button type="button" aria-label={text('清除搜索', 'Clear search')} onClick={() => { setQuery(''); setSearchIndex(-1) }}>×</button>}
+          {query && <button type="button" aria-label={text('清除搜索', 'Clear search')} onClick={event => { setQuery(''); setSearchIndex(-1); event.currentTarget.form?.querySelector('input')?.focus() }}>×</button>}
           <button type="submit" aria-label={text('搜索', 'Search')}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M16 4v7H4m4-4-4 4 4 4"/></svg></button>
-          {searchOpen && <div className="rg-pf-search-results" id="rg-finance-search-results" role="listbox" aria-label={text('搜索结果', 'Search results')}><small>{demo ? text('样例标的', 'Example instruments') : text('资料库中的标的', 'Instruments in your library')}</small>{assetMatches.map((asset, index) => <button type="button" role="option" id={`rg-finance-search-result-${index}`} key={asset.symbol} aria-selected={searchIndex === index} onMouseEnter={() => setSearchIndex(index)} onClick={() => { setSearchOpen(false); setQuery(''); openSymbol(asset.symbol) }}><AssetLogo symbol={asset.symbol} /><span><strong>{asset.name}</strong><small>{asset.symbol}{asset.sector ? ` · ${asset.sector}` : ''}</small></span><span>{asset.price === null ? '—' : asset.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}<small data-up={asset.change === null ? undefined : asset.change >= 0}>{asset.change === null ? '—' : `${asset.change >= 0 ? '+' : ''}${asset.change.toFixed(2)}%`}</small></span></button>)}{assetMatches.length === 0 && <p>{text('本地未找到匹配项。按回车查询代码，或研究这个问题。', 'No local match. Press Enter to look up the symbol or research this question.')}</p>}</div>}
+          {searchOpen && <div className="rg-pf-search-results" id="rg-finance-search-results" role="listbox" aria-label={text('搜索结果', 'Search results')}><small>{demo ? text('样例标的', 'Example instruments') : text('资料库中的标的', 'Instruments in your library')}</small>{assetMatches.map((asset, index) => <button type="button" role="option" id={`rg-finance-search-result-${index}`} key={asset.symbol} aria-selected={searchIndex === index} onMouseEnter={() => setSearchIndex(index)} onClick={() => { setSearchOpen(false); setQuery(''); openSymbol(asset.symbol) }}><AssetLogo symbol={asset.symbol} /><span><strong>{asset.name}</strong><small>{asset.symbol}{asset.sector ? ` · ${asset.sector}` : ''}</small></span><span>{searchPrice(asset.price)}<small data-up={asset.change === null ? undefined : asset.change >= 0}>{asset.change === null ? '—' : `${asset.change >= 0 ? '+' : ''}${asset.change.toFixed(2)}%`}</small></span></button>)}{assetMatches.length === 0 && <p>{text('本地未找到匹配项。按回车查询代码，或研究这个问题。', 'No local match. Press Enter to look up the symbol or research this question.')}</p>}</div>}
         </form>
         <div className="rg-pf-header-actions">
           {assetPage && <button type="button" className="rg-pf-share" onClick={() => { const url = new URL(window.location.href); url.searchParams.set('asset', assetSymbol); setShareUrl(url.href); setShareNotice(''); setShareOpen(true) }}><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden><path d="M12 3l5 5-5 4V9c-5 0-7 3-8 6 0-7 3-9 8-9V3Z"/><path d="M17 13v4H3V6h3"/></svg>{text('分享', 'Share')}</button>}<button type="button" className="rg-pf-assistant-button" onClick={() => { setAssistant(value => !value) }}>{text('金融助手', 'Finance assistant')}<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M3 8h10m-4-4 4 4-4 4"/></svg></button>
@@ -288,7 +303,7 @@ export function FinanceWorkspace({ store, t, nodes, edges, research, conversatio
         {state.phase === 'ready' && state.section === 'hypotheses' && (research !== undefined ? <HypothesesPanel research={research} t={t} nodes={nodes} edges={edges} graphPhase={graphPhase} graphError={graphError} onRefreshGraph={onRefreshGraph} onOpenGraph={onOpenGraph} onOpenReport={openReport} onOpenLibrary={() => { store.setSection('library') }} onResearch={openResearch} /> : <div className="rg-state" role="alert">{t('research.unavailable')}</div>)}
         {state.phase === 'ready' && state.section === 'reports' && (research !== undefined ? <ReportsPanel research={research} t={t} nodes={nodes} edges={edges} graphPhase={graphPhase} graphError={graphError} onRefreshGraph={onRefreshGraph} onOpenGraph={onOpenGraph} onOpenLibrary={openLibrary} onOpenBriefing={() => { store.setSection('briefing') }} conversations={conversations} onResearch={conversations ? seed => { void launch(seed) } : undefined} locale={pageLocale} /> : <div className="rg-state" role="alert">{t('research.unavailable')}</div>)}
         {state.phase === 'ready' && state.section === 'market' && <MarketPanel {...props} onResearch={openResearch} locale={pageLocale} demo={demo} />}
-        {state.phase === 'ready' && (state.section === 'virtual-fund' || state.section === 'portfolio') && <VirtualFundPanel key={state.section} locale={pageLocale} nodes={nodes} readState={readFundState} portfolioContent={<PortfolioPanel {...props} />} initialView={state.section === 'portfolio' ? 'portfolio' : 'office'} onResearch={(question, sessionId) => { if (conversations) void launch({ mode: 'question', question, skillName: 'virtual-fund' }, sessionId); else openResearch(question, 'virtual-fund') }} />}
+        {state.phase === 'ready' && (state.section === 'virtual-fund' || state.section === 'portfolio') && <VirtualFundPanel key={state.section} locale={pageLocale} nodes={nodes} readState={readFundState} readSchedules={readSchedules} portfolioContent={<PortfolioPanel {...props} />} initialView={state.section === 'portfolio' ? 'portfolio' : 'office'} onResearch={(question, sessionId) => { if (conversations) void launch({ mode: 'question', question, skillName: 'virtual-fund' }, sessionId); else openResearch(question, 'virtual-fund') }} />}
         {state.phase === 'ready' && state.section === 'valuations' && <ValuationsPanel {...props} />}
         {state.phase === 'ready' && state.section === 'predictions' && <PredictionsPanel {...props} onResearch={conversations ? openResearch : undefined} />}
         {state.phase === 'ready' && state.section === 'briefing' && <BriefingPanel {...props} onResearch={conversations ? openResearch : undefined} />}

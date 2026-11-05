@@ -8,6 +8,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }))
 import { apply, inject, NS } from '../../client/index.tsx'
 import { PANEL_ENTRIES } from '../../client/entries.tsx'
+import { FINANCE_TOOL_VIEW_TOOLS } from '../../client/ui/FinanceToolView.tsx'
+import { hostNavigator } from '../../client/host-nav.ts'
 import type { PanelEntry } from '../../client/entries.tsx'
 import { en } from '../../client/locales.ts'
 import type { ClientShell } from '../../client/index.tsx'
@@ -26,13 +28,15 @@ function translate(key: string, params?: Record<string, unknown>): string {
   return Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), template)
 }
 
-function harness(initialPanel: string | null = null, supportsPanelSelection = true) {
+function harness(initialPanel: string | null = null, supportsPanelSelection = true, sidebarAvailable = false) {
   const mains = new Map<string, Seat>()
   const sidebar = new Map<string, Seat>()
   const commands = new Map<string, Seat>()
+  const toolviews = new Map<string, Seat>()
   const cleanups: Array<() => void> = []
   const listeners = new Set<() => void>()
   const mainRegistrations: Array<() => unknown> = []
+  const capabilityInjections: string[][] = []
   let activePanelId = initialPanel
   let subscriptions = 0
   const selectPanel = vi.fn((id: string | null) => {
@@ -41,6 +45,14 @@ function harness(initialPanel: string | null = null, supportsPanelSelection = tr
     for (const listener of [...listeners]) listener()
   })
   const ctx = {
+    inject: (dependencies: string[], callback: (context: ClientShell) => void): void => {
+      capabilityInjections.push([...dependencies])
+      if (sidebarAvailable) callback({
+        ...ctx,
+        uiWorkspace: { openSession: () => {} },
+        sidebarRight: { mounted: { getSnapshot: () => 'session:one' }, openResource: () => {} },
+      } as unknown as ClientShell)
+    },
     locale: {
       register: () => () => {},
       bind: () => translate,
@@ -52,7 +64,7 @@ function harness(initialPanel: string | null = null, supportsPanelSelection = tr
       },
       register: (options: Record<string, unknown>, component: unknown) => {
         const seat = { options, component }
-        const map = options['name'] === 'main' ? mains : options['name'] === 'conversation.chat.commandview' ? commands : sidebar
+        const map = options['name'] === 'main' ? mains : options['name'] === 'conversation.chat.commandview' ? commands : options['name'] === 'tool.call.toolview' ? toolviews : sidebar
         const id = String(options['name'] === 'sidebar.panellist' ? options['id'] : options['key'])
         map.set(id, seat)
         return () => {
@@ -88,7 +100,7 @@ function harness(initialPanel: string | null = null, supportsPanelSelection = tr
   }
   const dispose = () => { while (cleanups.length > 0) cleanups.pop()?.() }
   apply(ctx as unknown as ClientShell)
-  return { mains, sidebar, commands, selectPanel, dispose, reregisterMains: () => { for (const register of mainRegistrations) register() }, get activePanelId() { return activePanelId }, get subscriptions() { return subscriptions } }
+  return { mains, sidebar, commands, toolviews, capabilityInjections, selectPanel, dispose, reregisterMains: () => { for (const register of mainRegistrations) register() }, get activePanelId() { return activePanelId }, get subscriptions() { return subscriptions } }
 }
 
 function injectedSeat(seat: Seat | undefined): {
@@ -108,6 +120,20 @@ function injectedSeat(seat: Seat | undefined): {
 
 describe('unified Finance entrance and retained panel addresses', () => {
   afterEach(() => { vi.unstubAllGlobals() })
+
+  it('keeps file preview optional without blocking Finance when its host service is absent', () => {
+    expect(inject).not.toContain('sidebarRight')
+    const unavailable = harness()
+    try {
+      expect(unavailable.mains.has('finance-workbench')).toBe(true)
+      expect(unavailable.capabilityInjections).toContainEqual(['sidebarRight'])
+      expect(unavailable.capabilityInjections).toContainEqual(['remote.schedule'])
+      expect(hostNavigator()).toBeUndefined()
+    } finally { unavailable.dispose() }
+    const available = harness(null, true, true)
+    try { expect(hostNavigator()).toBeDefined() } finally { available.dispose() }
+    expect(hostNavigator()).toBeUndefined()
+  })
 
   it.each(['AAPL', ' aapl ', '^GSPC', 'BRK-B', 'EURUSD=X'])('opens a valid shared asset %s only after its main is registered', (asset) => {
     vi.stubGlobal('window', { location: { href: `http://localhost/?asset=${encodeURIComponent(asset)}` } })
@@ -160,6 +186,7 @@ describe('unified Finance entrance and retained panel addresses', () => {
       expect(rig.sidebar.size).toBe(1)
       expect([...rig.sidebar.keys()]).toEqual(['finance-workbench'])
       expect([...rig.commands.keys()]).toEqual(['research-graph', 'finance', ''])
+      expect([...rig.toolviews.keys()]).toEqual([...FINANCE_TOOL_VIEW_TOOLS])
       expect(PANEL_ENTRIES.map(entry => entry.id)).toContain('research-graph')
       expect(PANEL_ENTRIES.map(entry => entry.id)).toContain('finance-workbench')
       expect(PANEL_ENTRIES.map(entry => entry.id)).toContain('finance-library')
@@ -167,6 +194,32 @@ describe('unified Finance entrance and retained panel addresses', () => {
       expect(PANEL_ENTRIES.map(entry => entry.id)).toContain('finance-market')
       expect(PANEL_ENTRIES.map(entry => entry.id)).toContain('finance-guide')
       expect(new Set(PANEL_ENTRIES.map(entry => entry.icon)).size).toBe(PANEL_ENTRIES.length)
+    } finally {
+      rig.dispose()
+    }
+  })
+
+  it('routes the host locale into the registered tool process view (zh/en)', () => {
+    const rig = harness()
+    try {
+      const seat = rig.toolviews.get('finance_market_data')
+      expect(seat).toBeDefined()
+      const block = {
+        name: 'finance_market_data',
+        call: { name: 'finance_market_data', argsRaw: '{"action":"fetch","symbol":"AAAA"}' },
+        content: [{ type: 'text', text: '{"ok":true}' }],
+        isError: false,
+      }
+      const owner = { callId: 'call-1', toolName: 'finance_market_data', phase: 'result', block }
+      const render = (active: string) => renderToString(createElement(seat!.component as ComponentType<Record<string, unknown>>, {
+        ...owner,
+        localeFace: { getSnapshot: () => active, subscribe: () => () => {} },
+      }))
+      // Without the localeFace bridge the card would stay Chinese under an English host.
+      expect(render('en')).toContain('Fetching market data')
+      expect(render('en')).toContain('Done')
+      expect(render('zh')).toContain('读取行情数据')
+      expect(render('zh')).toContain('完成')
     } finally {
       rig.dispose()
     }

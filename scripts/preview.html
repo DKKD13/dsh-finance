@@ -139,6 +139,7 @@
 <script src="/dist/client.js"></script>
 <script type="module">
   import { createPreviewPrimitives } from '/scripts/preview-primitives.mjs'
+  import * as zod from '/node_modules/zod/index.js'
 
   const params = new URLSearchParams(location.search)
   const lang = params.get('lang') ?? 'zh'
@@ -146,6 +147,9 @@
 
   const entry = window.__registered[0]
   const require_ = (spec) => {
+    if (spec === '@deepseek-ai/dsh-typert-protocol') return { createTypertRemoteInfo: () => ({ descriptors: [] }) }
+    if (spec === '@deepseek-ai/cordis') return { Service: class { constructor(ctx, name) { this.ctx = ctx; this.name = name } } }
+    if (spec === 'zod') return zod
     if (spec === 'react') return window.React
     if (spec === 'react/jsx-runtime') return {
       Fragment: window.React.Fragment,

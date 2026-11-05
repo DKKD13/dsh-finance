@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeFinanceRequest } from '../../src/finance/protocol.ts'
 import { FinanceService } from '../../src/finance/service.ts'
 import { registerFinanceTools } from '../../src/finance/tools.ts'
@@ -91,6 +92,29 @@ function advance(
 }
 
 describe('persisted virtual fund', () => {
+  it('keeps fund revision and records in one read view and reloads legacy revision zero', async () => {
+    const { config, graph, finance } = await setup()
+    await mkdir(config.dataDir, { recursive: true })
+    const legacy = {
+      id: 'portfolio:legacy', kind: 'portfolio', title: 'Legacy Fund', content: '',
+      metadata: { virtualFund: { initialCash: 1000, currency: 'USD', startingAt } },
+      createdAt: 1, updatedAt: 1,
+    }
+    await writeFile(join(config.dataDir, 'graph.json'), JSON.stringify({ nodes: [legacy], edges: [] }))
+    const legacyRead = await finance.fundState({ knownRevision: 0 })
+    expect(legacyRead.result.funds.map(node => node.id)).toEqual(['portfolio:legacy'])
+    expect(legacyRead.result.unchanged).not.toBe(true)
+    const reopened = new FinanceService(new Context(), new ResearchGraphService(new Context(), config))
+    const currentRevision = vi.spyOn(graph, 'currentRevision').mockRejectedValue(new Error('revision must not be read separately'))
+    const read = await finance.fundState({ knownRevision: legacyRead.revision })
+    expect(read.revision).toBe(legacyRead.revision)
+    expect(read.result.funds.map(node => node.id)).toEqual(['portfolio:legacy'])
+    expect(currentRevision).not.toHaveBeenCalled()
+    const stableRead = await reopened.fundState()
+    expect(stableRead.revision).toBe(legacyRead.revision)
+    expect(stableRead.result.funds.map(node => node.id)).toEqual(['portfolio:legacy'])
+  })
+
   it('mechanically rejects malformed fund currencies before writing', async () => {
     const { finance, graph } = await setup()
     await expect(finance.fundConfigure({
@@ -119,6 +143,8 @@ describe('persisted virtual fund', () => {
         events: [],
       },
     })
+    expect(protocol.ok).toBe(true)
+    if (!protocol.ok) throw new Error('fund state fixture failed')
 
     const tool = await tools.get('finance_virtual_fund')?.execute(
       { action: 'state', input: { fundId: 'portfolio:fund' } },
@@ -129,6 +155,23 @@ describe('persisted virtual fund', () => {
       revision: 1,
       result: { funds: [{ id: 'portfolio:fund' }] },
     })
+
+    const currentRevision = await executeFinanceRequest(finance, {
+      op: 'fund.state', input: { knownRevision: protocol.revision },
+    })
+    expect(currentRevision).toMatchObject({ ok: true, revision: protocol.revision, result: { unchanged: true } })
+    expect(JSON.stringify(currentRevision).length).toBeLessThan(JSON.stringify(protocol).length)
+    await finance.fundResearcher({
+      fundId: 'portfolio:fund', id: 'session:poll-test', title: 'Poll test',
+      tickers: ['AAPL'], researchStyle: 'evidence', focus: 'AAPL', task: 'Read updates', enabled: false,
+    })
+    const changed = await executeFinanceRequest(finance, {
+      op: 'fund.state', input: { knownRevision: protocol.revision },
+    })
+    expect(changed).toMatchObject({ ok: true, result: { researchers: [{ id: 'session:poll-test' }] } })
+    expect(changed.ok && changed.result).not.toHaveProperty('unchanged')
+    const invalid = await executeFinanceRequest(finance, { op: 'fund.state', input: { knownRevision: -1 } })
+    expect(invalid).toMatchObject({ ok: false, error: { code: 'INVALID_FUND_INPUT' } })
   })
 
   it('survives restart with GraphNode authority, explicit roles, and real schedule/session references', async () => {

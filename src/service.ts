@@ -240,6 +240,12 @@ export class ResearchGraphService extends Service {
     return (await this.store()).engine.listNodes(kind)
   }
 
+  /** Revision and nodes read from one store view, without copying every edge. */
+  async readNodeSnapshot(): Promise<{ revision: number; nodes: GraphNode[] }> {
+    const store = await this.store()
+    return { revision: store.currentRevision, nodes: store.engine.listNodes() }
+  }
+
   /** Add one edge; both endpoints must exist. */
   async addEdge(input: EdgeInput): Promise<{ revision: number; edge: GraphEdge }> {
     const store = await this.store()

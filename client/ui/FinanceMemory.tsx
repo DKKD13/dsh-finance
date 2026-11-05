@@ -6,7 +6,7 @@ import { financeOperation } from '../finance-store.ts'
 import type { Translate } from '../store.ts'
 import { asRecord, displayValue, Field, FinanceEmpty, LazyDetails, NodeProvenance, OperationStatus, Provenance, RawJson, useFinance } from './FinanceCommon.tsx'
 import type { FinancePanelProps } from './FinanceCommon.tsx'
-import { AutoTable, PrimitiveSummary } from './FinanceData.tsx'
+import { AutoTable, PrimitiveSummary, ResultWarnings } from './FinanceData.tsx'
 import { CalibrationPlot } from './FinanceCharts.tsx'
 import { CatalystTimeline } from './FinancePanels.tsx'
 import type { ConversationSeed } from './ConversationDialog.tsx'
@@ -53,6 +53,11 @@ function metadataInput(draft: MetadataDraft): JsonObject {
 
 function optionalNumber(value: string): number | undefined {
   return value.trim().length === 0 ? undefined : Number(value)
+}
+
+/** A finished calibration evaluation: summary numbers, visible Host warnings, the plot, details. */
+export function CalibrationResult({ value, t }: { readonly value: unknown; readonly t: Translate }) {
+  return <div className="rg-finance-result"><PrimitiveSummary value={value} /><ResultWarnings value={value} /><CalibrationPlot value={value} t={t} /><AutoTable value={value} t={t} /><RawJson value={value} t={t} /></div>
 }
 
 export function PredictionSummary({ value, t }: { readonly value: unknown; readonly t: Translate }) {
@@ -186,7 +191,7 @@ export function PredictionsPanel({ store, t, nodes, onResearch }: MemoryPanelPro
             <div className="rg-finance-form-actions"><button className="rg-btn" data-primary type="submit" disabled={evaluateOperation.status === 'loading'}>{t('finance.briefing.evaluateAction')}</button></div>
           </form>
           <OperationStatus operation={evaluateOperation} t={t} idle={t('finance.calibration.idle')} />
-          {evaluateOperation.status === 'success' && <div className="rg-finance-result"><PrimitiveSummary value={evaluateOperation.result} /><CalibrationPlot value={evaluateOperation.result} t={t} /><AutoTable value={evaluateOperation.result} t={t} /><RawJson value={evaluateOperation.result} t={t} /></div>}
+          {evaluateOperation.status === 'success' && <CalibrationResult value={evaluateOperation.result} t={t} />}
         </section>}
         {tab === 'predictions' && <>
           <div className="rg-finance-two-column">
@@ -295,7 +300,7 @@ export function BriefingPanel({ store, t, onResearch }: MemoryPanelProps) {
           <div className="rg-finance-form-actions"><button className="rg-btn" data-primary type="submit" disabled={evaluateBusy}>{t('finance.briefing.evaluateAction')}</button></div>
         </form>
         <OperationStatus operation={evaluate} t={t} idle={t('finance.briefing.evaluateIdle')} />
-        {evaluate.status === 'success' && <div className="rg-finance-result"><PrimitiveSummary value={evaluate.result} /><AutoTable value={evaluate.result} t={t} /><RawJson value={evaluate.result} t={t} /></div>}
+        {evaluate.status === 'success' && <div className="rg-finance-result"><PrimitiveSummary value={evaluate.result} /><ResultWarnings value={evaluate.result} /><AutoTable value={evaluate.result} t={t} /><RawJson value={evaluate.result} t={t} /></div>}
       </section>
       </details>
     </section>

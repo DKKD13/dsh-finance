@@ -15,6 +15,17 @@ function success(result: JsonValue, revision = 1): GraphResponse {
 }
 
 describe('market request independence and stale charts', () => {
+  it('reads actual schedule tasks without confusing remote failures with running coverage', async () => {
+    const store = new FinanceStore({ request: async () => success({}) }, key => key, undefined, {
+      list: async ({ sessionId }) => sessionId === 'session-ok'
+        ? { ok: true as const, value: [{ id: 'schedule-real', title: 'QA', kind: 'daily', scheduledAt: '2026-01-01T00:00:00Z' }] }
+        : { ok: true as const, value: { code: 'session/not-found', message: 'Session is unavailable' } },
+    })
+    expect(await store.readSchedules('session-ok')).toMatchObject({ ok: true, value: [{ id: 'schedule-real' }] })
+    expect(await store.readSchedules('session-missing')).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    expect(await new FinanceStore({ request: async () => success({}) }, key => key).readSchedules('session-none')).toMatchObject({ ok: false, error: { code: 'SCHEDULE_UNAVAILABLE' } })
+  })
+
   it('settles quote/history independently, ignores late responses, and retains stale history', async () => {
     const calls: Deferred[] = []
     const gateway: FinanceGateway = {

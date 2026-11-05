@@ -223,6 +223,20 @@ export function formatNumber(value: unknown): string {
     : String(value ?? '—')
 }
 
+/** Rates and fractions (WACC, terminal growth, tax rate, probability) read as percents. */
+export function formatPercent(value: unknown): string {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 2 }).format(value)
+    : String(value ?? '—')
+}
+
+/** Money-like amounts: two decimals for whole-and-larger magnitudes, more precision below 1. */
+export function formatAmount(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return String(value ?? '—')
+  const fractionDigits = Math.abs(value) >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { minimumFractionDigits: 0, maximumFractionDigits: 6 }
+  return new Intl.NumberFormat(undefined, fractionDigits).format(value)
+}
+
 export function displayValue(value: unknown): string {
   if (typeof value === 'number') return formatNumber(value)
   if (typeof value === 'boolean') return value ? 'true' : 'false'

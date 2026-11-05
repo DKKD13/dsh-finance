@@ -7,8 +7,15 @@ import { VirtualFundOverview } from './VirtualFundOverview.tsx'
 import { FUND_AVATARS } from '../fund-avatars.ts'
 import { protectReportCurrency } from '../report-markdown.ts'
 import { AssetLogo } from './AssetLogo.tsx'
+import type { ScheduleListResult } from '../finance-store.ts'
 
 type View = 'office' | 'overview' | 'portfolio'
+/** sessionStorage key: the chosen fund survives section switches and remounts within one tab session. */
+const FUND_SELECTION_KEY = 'dsh-finance.virtual-fund-selection.v1'
+const readSavedFund = (): string => {
+  try { return typeof sessionStorage === 'undefined' ? '' : sessionStorage.getItem(FUND_SELECTION_KEY) ?? '' }
+  catch { return '' }
+}
 interface FundState { funds: readonly GraphNode[]; researchers: readonly GraphNode[]; snapshots: readonly GraphNode[]; events: readonly GraphNode[] }
 const string = (value: JsonValue | undefined) => typeof value === 'string' ? value : ''
 const object = (value: JsonValue | undefined): Record<string, JsonValue> => value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -24,20 +31,30 @@ function avatar(node: GraphNode, index: number) {
   return FUND_AVATARS[key] ?? Object.values(FUND_AVATARS)[1 + index % 6]!
 }
 
-export function VirtualFundPanel({ locale, nodes = [], readState, onResearch, portfolioContent, initialView = 'office' }: {
+type CoverageState = 'checking' | 'scheduled' | 'missing' | 'unknown'
+
+export function VirtualFundPanel({ locale, nodes = [], readState, readSchedules, onResearch, portfolioContent, initialView = 'office' }: {
   readonly locale: string; readonly nodes?: readonly GraphNode[]
-  readonly readState?: ((fundId?: string) => Promise<GraphResponse>) | undefined
+  readonly readState?: ((fundId?: string, knownRevision?: number) => Promise<GraphResponse>) | undefined
+  readonly readSchedules?: ((sessionId: string) => Promise<ScheduleListResult>) | undefined
   readonly onResearch?: ((question: string, sessionId?: string) => void) | undefined
   readonly portfolioContent?: ReactNode; readonly initialView?: View
 }) {
   const zh = locale.startsWith('zh'), text = (cn: string, en: string) => zh ? cn : en
   const [view, setView] = useState<View>(initialView)
   const [data, setData] = useState<FundState>(() => fromNodes(nodes))
-  const [fundId, setFundId] = useState('')
+  const [fundId, setFundIdState] = useState(readSavedFund)
+  const setFundId = (id: string) => {
+    setFundIdState(id)
+    try { if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(FUND_SELECTION_KEY, id) }
+    catch { /* The selection still works for this mount when storage is unavailable. */ }
+  }
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(!!readState)
   const [refresh, setRefresh] = useState(0)
+  const revision = useRef<number | undefined>(undefined)
+  const [coverageStatus, setCoverage] = useState<Record<string, CoverageState>>({})
   const trigger = useRef<HTMLElement | null>(null)
   const close = useRef<HTMLButtonElement>(null)
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
@@ -49,10 +66,12 @@ export function VirtualFundPanel({ locale, nodes = [], readState, onResearch, po
       if (pending) return
       pending = true
       try {
-        const response = await readState()
+        const response = await readState(undefined, revision.current)
         if (!alive) return
         if (!response.ok) { setError(response.error.code + ': ' + response.error.message); return }
         const result = object(response.result)
+        revision.current = response.revision
+        if (result.unchanged === true) { setError(''); return }
         setData({ funds: rows(result.funds), researchers: rows(result.researchers), snapshots: rows(result.snapshots), events: rows(result.events) })
         setError('')
       } catch (cause) { if (alive) setError(cause instanceof Error ? cause.message : String(cause)) }
@@ -76,7 +95,36 @@ export function VirtualFundPanel({ locale, nodes = [], readState, onResearch, po
     catch { return `${currency} ${value.toLocaleString(zh ? 'zh-CN' : 'en-US', { maximumFractionDigits: 0 })}`.trim() }
   }
   const date = (value: string) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString(zh ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }) : '—'
-  const stateOf = (node: GraphNode) => node.metadata.enabled === true && string(node.metadata.scheduleId) ? text('已设覆盖计划', 'Coverage scheduled') : node.metadata.enabled === true ? text('等待设置计划', 'Schedule pending') : text('未开启覆盖', 'Coverage paused')
+  useEffect(() => {
+    if (!readSchedules) return
+    let alive = true
+    const verify = async () => {
+      for (const node of data.researchers) {
+        const scheduleId = string(node.metadata.scheduleId)
+        const sessionId = string(node.metadata.sessionId)
+        if (node.metadata.enabled !== true || !scheduleId) continue
+        if (!sessionId) { if (alive) setCoverage(current => ({ ...current, [node.id]: 'unknown' })); continue }
+        if (alive) setCoverage(current => ({ ...current, [node.id]: 'checking' }))
+        const result = await readSchedules(sessionId)
+        if (!alive) return
+        const status = result.ok ? result.value.some(task => task.id === scheduleId) ? 'scheduled' : 'missing' : 'unknown'
+        setCoverage(current => ({ ...current, [node.id]: status }))
+      }
+    }
+    void verify()
+    const timer = setInterval(() => { if (!document.hidden) void verify() }, 30000)
+    return () => { alive = false; clearInterval(timer) }
+  }, [data.researchers, readSchedules, refresh])
+  const stateOf = (node: GraphNode) => {
+    if (node.metadata.enabled !== true) return text('未开启覆盖', 'Coverage paused')
+    if (!string(node.metadata.scheduleId)) return text('等待设置计划', 'Schedule pending')
+    if (!readSchedules) return text('计划状态未核实', 'Schedule unverified')
+    const status = coverageStatus[node.id]
+    return status === 'scheduled' ? text('已设覆盖计划', 'Coverage scheduled')
+      : status === 'missing' ? text('计划已失效', 'Schedule missing')
+        : status === 'checking' ? text('正在核对计划', 'Checking schedule')
+          : text('计划状态未核实', 'Schedule unverified')
+  }
   const setup = () => onResearch?.(text('我想创建一支虚拟基金和投研团队。请先简洁地询问基金名称、初始资金、基础币种（ISO 三字母代码）、起始日期，以及我希望覆盖的公司或方向；一次只问必要的问题。说明这是独立的模拟资金账本。确认后使用 finance_virtual_fund configure 保存，创建我选择的研究工位。', 'Help me create a virtual fund and research team. Ask briefly for its name, starting capital, base currency (three-letter ISO code), start date and coverage. Ask only what is needed. This is a separate paper-fund ledger. After confirmation, persist it with finance_virtual_fund configure and create the selected research desks.'))
   const advance = () => fund && onResearch?.(`${text('查看并推进这支虚拟基金的模拟研究：', 'Review and advance this virtual fund: ')} ${JSON.stringify(fund.id)}。${text('先读取最新截面和研究记录，询问我要推进到哪个日期，严格使用当时已可用资料。用 finance_virtual_fund advance 计算纸面持仓和净值。', 'Read its latest snapshot and research. Ask which as-of date to advance to. Use only information available by then, and finance_virtual_fund advance for paper holdings and NAV.')}`)
   const createDesk = () => fund ? onResearch?.(`${text('为这支虚拟基金创建一个投研工位：', 'Create a research desk for this virtual fund: ')} ${JSON.stringify(fund.id)}。${text('请通过简短对话了解职业角色、研究风格、关注方向、研究任务和覆盖标的，然后保存。是否持续覆盖、更新频率和时区由我确认；只有实际创建 DSH 计划成功后才标记已开启。', 'Ask briefly about its professional role, research style, focus, task and covered symbols, then save it. Confirm recurring coverage, cadence and time zone with me; only mark coverage enabled after a native DSH schedule was actually created.')}`) : setup()
@@ -111,7 +159,7 @@ export function VirtualFundPanel({ locale, nodes = [], readState, onResearch, po
         <div className="rg-vfund-floor"><div className="rg-vfund-fund-summary"><div className="rg-vfund-fund-identity"><img src={FUND_AVATARS.pm} alt=""/><div><span>{text('模拟资金账本', 'Paper fund ledger')}</span><h3>{fund.title}</h3><p>{latest ? text('最新截面 ', 'Latest as of ') + date(string(latest.metadata.asOf)) : text('从 ', 'Starting ') + date(string(config.startingAt))}</p></div></div><dl><div><dt>{text('组合净值', 'Portfolio value')}</dt><dd>{money(latest?.metadata.nav ?? config.initialCash)}</dd></div><div><dt>{text('现金', 'Cash')}</dt><dd>{money(latest?.metadata.cash ?? config.initialCash)}</dd></div></dl><button type="button" className="rg-vfund-text-button" onClick={discussWithManager}>{text('与基金经理讨论', 'Discuss with the manager')} ↗</button></div>
           <div className="rg-vfund-room"><div className="rg-vfund-area-title"><h4>{text('研究工位', 'Research desks')}</h4><span>{researchers.length} {text('位研究员', 'researchers')}</span></div>{researchers.length === 0 ? <div className="rg-vfund-event-empty"><p>{text('第一位研究员，想让他关注什么？', 'What should your first researcher focus on?')}</p><button type="button" className="rg-btn" onClick={createDesk}>{text('创建投研工位', 'Create research desk')}</button></div> : <div className="rg-vfund-analysts">{researchers.map((node, index) => {
             const output = events.find(n => n.metadata.researcherId === node.id)
-            return <button type="button" key={node.id} className="rg-vfund-node rg-vfund-station" data-seat={node.id} data-selected={selected === node.id || undefined} data-working={node.metadata.enabled === true && !!node.metadata.scheduleId || undefined} onClick={e => openSeat(node.id, e.currentTarget)} aria-label={`${text('查看', 'Inspect')} ${node.title}`}><span className="rg-vfund-monitor"><span className="rg-vfund-screen"><span className="rg-vfund-screen-bar"><i/><i/><i/><span>{text('研究终端', 'Research')}</span><small>{stateOf(node)}</small></span><span className="rg-vfund-screen-content"><span className="rg-vfund-coverage">{tickers(node).slice(0, 3).map(symbol => <span key={symbol}><AssetLogo symbol={symbol}/><strong>{symbol}</strong></span>)}</span><span className="rg-vfund-note-state">{output ? text('最近研究', 'Latest research') : string(node.metadata.researchStyle) || text('研究方向', 'Research focus')}</span><p>{output?.title ?? (string(node.metadata.task) || string(node.metadata.focus) || text('在对话中设置研究任务', 'Set a research task in conversation'))}</p></span></span></span><span className="rg-vfund-monitor-neck"/><span className="rg-vfund-monitor-base"/><span className="rg-vfund-colleague"><img src={avatar(node, index)} alt=""/><span className="rg-vfund-seat-light"/></span><span className="rg-vfund-desk"/><span className="rg-vfund-nameplate"><span><strong>{node.title}</strong><small>{string(node.metadata.focus) || text('独立研究', 'Independent research')}</small></span><span className="rg-vfund-inspect">{text('交流', 'Talk')} ↗</span></span></button>
+            return <button type="button" key={node.id} className="rg-vfund-node rg-vfund-station" data-seat={node.id} data-selected={selected === node.id || undefined} data-working={coverageStatus[node.id] === 'scheduled' || undefined} onClick={e => openSeat(node.id, e.currentTarget)} aria-label={`${text('查看', 'Inspect')} ${node.title}`}><span className="rg-vfund-monitor"><span className="rg-vfund-screen"><span className="rg-vfund-screen-bar"><i/><i/><i/><span>{text('研究终端', 'Research')}</span><small>{stateOf(node)}</small></span><span className="rg-vfund-screen-content"><span className="rg-vfund-coverage">{tickers(node).slice(0, 3).map(symbol => <span key={symbol}><AssetLogo symbol={symbol}/><strong>{symbol}</strong></span>)}</span><span className="rg-vfund-note-state">{output ? text('最近研究', 'Latest research') : string(node.metadata.researchStyle) || text('研究方向', 'Research focus')}</span><p>{output?.title ?? (string(node.metadata.task) || string(node.metadata.focus) || text('在对话中设置研究任务', 'Set a research task in conversation'))}</p></span></span></span><span className="rg-vfund-monitor-neck"/><span className="rg-vfund-monitor-base"/><span className="rg-vfund-colleague"><img src={avatar(node, index)} alt=""/><span className="rg-vfund-seat-light"/></span><span className="rg-vfund-desk"/><span className="rg-vfund-nameplate"><span><strong>{node.title}</strong><small>{string(node.metadata.focus) || text('独立研究', 'Independent research')}</small></span><span className="rg-vfund-inspect">{text('交流', 'Talk')} ↗</span></span></button>
           })}</div>}</div>
           {coverage.length > 0 && <section className="rg-vfund-archive"><h4>{text('覆盖档案', 'Coverage archive')}</h4><div className="rg-vfund-archive-grid">{coverage.map(symbol => { const owner = researchers.find(n => tickers(n).includes(symbol))!; const count = events.filter(n => Array.isArray(n.metadata.instruments) && n.metadata.instruments.some(instrument => typeof instrument === 'string' && instrument.trim().toUpperCase() === symbol.trim().toUpperCase())).length; return <button type="button" key={symbol} onClick={e => openSeat(owner.id, e.currentTarget)}><AssetLogo symbol={symbol}/><span><strong>{symbol}</strong><small>{count ? `${count} ${text('份研究', 'reports')}` : text('等待首份研究', 'Awaiting first research')}</small></span><span aria-hidden>↗</span></button> })}</div></section>}
         </div>

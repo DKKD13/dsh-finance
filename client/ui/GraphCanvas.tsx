@@ -10,7 +10,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { GraphEdge, GraphNode } from '../../src/graph.ts'
-import { centerViewport, fitViewport, neighborsOf, screenToWorld, worldToScreen, zoomAt } from '../layout.ts'
+import { centerViewport, collidingLabels, estimateLabelBox, fitViewport, neighborsOf, pinnedLabelLift, screenToWorld, worldToScreen, zoomAt } from '../layout.ts'
+import type { LabelBox } from '../layout.ts'
 import { visibleEdges, visibleNodes } from '../store.ts'
 import { shortTitle, useWorkbench } from './common.ts'
 import { FinanceKindIcon } from './FinanceCommon.tsx'
@@ -137,6 +138,44 @@ export function GraphCanvas({ store, t }: ViewProps) {
     set.add(emphasis)
     return set
   }, [edges, emphasis])
+
+  // Label modes per node; neighbor labels yield to collision in screen space so
+  // a fit graph with one selected node does not stack unreadable titles.
+  const labelFont = size.width < 720 ? 10 : 11
+  const labelLimit = size.width < 720 ? 12 : 18
+  const labelModes = useMemo(() => {
+    const modes = new Map<string, 'all' | 'neighbors' | 'false'>()
+    for (const node of positioned) {
+      const pinned = node.id === state.selectedId || state.hoveredId === node.id
+      modes.set(node.id, pinned ? 'all' : viewport.zoom >= .85 || highlighted?.has(node.id) === true ? 'neighbors' : 'false')
+    }
+    return modes
+  }, [positioned, state.selectedId, state.hoveredId, highlighted, viewport.zoom])
+  const labelLayout = useMemo(() => {
+    const placements: { readonly id: string; readonly priority: number; readonly box: LabelBox }[] = []
+    for (const node of positioned) {
+      const mode = labelModes.get(node.id)
+      if (mode === undefined || mode === 'false') continue
+      const point = positionsOf(state.positions, node.id)
+      if (point === undefined) continue
+      const screen = worldToScreen(viewport, point)
+      placements.push({
+        id: node.id,
+        priority: node.id === state.selectedId || state.hoveredId === node.id ? 1 : 0,
+        box: estimateLabelBox({ x: screen.x, y: screen.y + NODE_RADIUS + 13 }, shortTitle(node.title, labelLimit), labelFont),
+      })
+    }
+    // Both pinned labels always render; lift the hovered one above its node
+    // when the two pinned boxes overlap so neither is unreadable.
+    const lift = pinnedLabelLift(placements, state.selectedId, state.hoveredId, -(NODE_RADIUS + 13) * 2)
+    const hidden = collidingLabels(placements.map(placement => ({
+      ...placement,
+      box: { ...placement.box, y: placement.box.y + (lift.get(placement.id) ?? 0) },
+    })))
+    return { hidden, lift }
+  }, [positioned, labelModes, state.positions, state.selectedId, state.hoveredId, viewport, labelLimit, labelFont])
+  const hiddenLabels = labelLayout.hidden
+  const labelLift = labelLayout.lift
 
   // Track the canvas box for fit and zoom anchoring.
   useEffect(() => {
@@ -346,6 +385,8 @@ export function GraphCanvas({ store, t }: ViewProps) {
             const isSelected = state.selectedId === node.id
             const isHighlight = highlighted !== null && highlighted.has(node.id)
             const dimmed = highlighted !== null && !isHighlight
+            const showLabel = labelModes.get(node.id) === 'all'
+              || labelModes.get(node.id) === 'neighbors' && !hiddenLabels.has(node.id)
             return (
               <g
                 key={node.id}
@@ -353,7 +394,7 @@ export function GraphCanvas({ store, t }: ViewProps) {
                 data-node={node.id}
                 data-dimmed={dimmed || undefined}
                 data-highlight={isHighlight && !isSelected || undefined}
-                data-label={isSelected || state.hoveredId === node.id || viewport.zoom >= .85 ? 'all' : isHighlight ? 'neighbors' : 'false'}
+                data-label={labelModes.get(node.id) === 'neighbors' && hiddenLabels.has(node.id) ? 'false' : labelModes.get(node.id) ?? 'false'}
                 transform={`translate(${point.x} ${point.y}) scale(${inverseZoom})`}
                 tabIndex={activeNodeId === node.id ? 0 : -1}
                 role="button"
@@ -375,7 +416,7 @@ export function GraphCanvas({ store, t }: ViewProps) {
                   style={{ '--rg-node-color': `var(--rg-kind-${node.kind})` } as Record<string, string>}
                 />
                 <g className="rg-node-finance-icon" transform="translate(-5.5 -5.5)"><FinanceKindIcon kind={node.kind} size={11} /></g>
-                <text y={NODE_RADIUS + 13} fontSize={size.width < 720 ? 10 : 11}>{shortTitle(node.title, size.width < 720 ? 12 : 18)}</text>
+                {showLabel && <text y={NODE_RADIUS + 13 + (labelLift.get(node.id) ?? 0)} fontSize={size.width < 720 ? 10 : 11}>{shortTitle(node.title, size.width < 720 ? 12 : 18)}</text>}
               </g>
             )
           })}

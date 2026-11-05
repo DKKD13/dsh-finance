@@ -375,6 +375,25 @@ describe('Hypotheses and Reports rendering', () => {
     expect(html).not.toContain('102.5billion，同比 + 81.85')
   })
 
+  it('offers a visual artifact entry only for a valid metadata.visualArtifact path', async () => {
+    const rig = await setup(false)
+    await rig.graph.createNode({ id: 'deliverable:visual', kind: 'deliverable', title: 'Visual report', content: '# Thesis\n\nWith a chart.', metadata: { visualArtifact: 'reports/visual-report.html', sessionId: 's-visual' } })
+    await rig.graph.createNode({ id: 'deliverable:broken-visual', kind: 'deliverable', title: 'Broken visual report', content: '# Thesis', metadata: { visualArtifact: '../escape.html' } })
+    await rig.workbench.load()
+    rig.finance.setSection('reports')
+
+    rig.research.selectReport('deliverable:visual')
+    const withArtifact = render(rig)
+    expect(withArtifact).toContain('Open visual')
+    expect(withArtifact).not.toContain('escape.html')
+
+    rig.research.selectReport('deliverable:broken-visual')
+    const broken = render(rig)
+    expect(broken).not.toContain('Open visual')
+    expect(broken).not.toContain('escape.html')
+    expect(broken).toContain('not locatable')
+  })
+
   it('keeps history primary and shows timeout details in research activity', async () => {
     const rig = await setup(false)
     rig.finance.setSection('reports')

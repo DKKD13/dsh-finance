@@ -38,12 +38,13 @@ export function InboxPanel({ store, t, onOpenGraph, initialEntry = 'url' }: Inbo
   const previewOperation = financeOperation(state, 'ingest')
   const commitOperation = financeOperation(state, 'inboxCommit')
   const preview = readInboxPreview(previewOperation.result)
+  const draft = store.getInboxDraft()
   const [entry, setEntry] = useState<InboxEntry>(initialEntry)
-  const [source, setSource] = useState<'rss' | 'youtube'>('rss')
-  const [url, setUrl] = useState('')
-  const [clipText, setClipText] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [asOf, setAsOf] = useState('')
+  const [source, setSource] = useState<'rss' | 'youtube'>(draft.source)
+  const [url, setUrl] = useState(draft.url)
+  const [clipText, setClipText] = useState(draft.clipText)
+  const [file, setFile] = useState<File | null>(draft.file)
+  const [asOf, setAsOf] = useState(draft.asOf)
   const [validation, setValidation] = useState<string | null>(null)
   const [readingFile, setReadingFile] = useState(false)
   const [inputRevision, setInputRevision] = useState(0)
@@ -163,22 +164,24 @@ export function InboxPanel({ store, t, onOpenGraph, initialEntry = 'url' }: Inbo
       <section id={`${tabId}-panel`} className="rg-finance-block" role="tabpanel" aria-labelledby={`${tabId}-tab-${entry}`}>
         <form className="rg-finance-form" onSubmit={event => { void submit(event) }}>
           {entry === 'url' && <div className="rg-finance-fields-inline">
-            <Field label={t('finance.inbox.sourceLabel')}><select value={source} onChange={event => { setSource(event.target.value as 'rss' | 'youtube'); invalidateInput() }}><option value="rss">{t('finance.inbox.source.rss')}</option><option value="youtube">{t('finance.inbox.source.youtube')}</option></select></Field>
-            <Field label={t('finance.inbox.urlLabel')} hint={t('finance.inbox.urlHint')}><input required type="url" value={url} onChange={event => { setUrl(event.target.value); invalidateInput() }} placeholder={source === 'rss' ? 'https://example.com/feed.xml' : 'https://www.youtube.com/watch?v=…'} /></Field>
+            <Field label={t('finance.inbox.sourceLabel')}><select value={source} onChange={event => { const source = event.target.value as 'rss' | 'youtube'; setSource(source); store.updateInboxDraft({ source }); invalidateInput() }}><option value="rss">{t('finance.inbox.source.rss')}</option><option value="youtube">{t('finance.inbox.source.youtube')}</option></select></Field>
+            <Field label={t('finance.inbox.urlLabel')} hint={t('finance.inbox.urlHint')}><input required type="url" value={url} onChange={event => { setUrl(event.target.value); store.updateInboxDraft({ url: event.target.value }); invalidateInput() }} placeholder={source === 'rss' ? 'https://example.com/feed.xml' : 'https://www.youtube.com/watch?v=…'} /></Field>
           </div>}
           {entry === 'clip' && <Field label={t('finance.inbox.clipJson')} hint={t('finance.inbox.clipHint')}>
-            <textarea required className="rg-finance-json rg-inbox-clip-input" value={clipText} onChange={event => { setClipText(event.target.value); invalidateInput() }} spellCheck={false} rows={14} placeholder={'{"schema":"dsh.clipper/v1","kind":"page","content":{"text":"…"}}'} />
+            <textarea required className="rg-finance-json rg-inbox-clip-input" value={clipText} onChange={event => { setClipText(event.target.value); store.updateInboxDraft({ clipText: event.target.value }); invalidateInput() }} spellCheck={false} rows={14} placeholder={'{"schema":"dsh.clipper/v1","kind":"page","content":{"text":"…"}}'} />
           </Field>}
           {entry === 'file' && <>
             <Field label={t('finance.inbox.file')} hint={t('finance.inbox.fileHint')}>
               <input type="file" accept={INBOX_FILE_ACCEPT} onChange={event => {
-                setFile(event.target.files?.[0] ?? null)
+                const file = event.target.files?.[0] ?? null
+                setFile(file)
+                store.updateInboxDraft({ file })
                 invalidateInput()
               }} />
             </Field>
             {file !== null && <dl className="rg-inbox-file-meta"><div><dt>{t('finance.inbox.fileName')}</dt><dd>{file.name}</dd></div><div><dt>{t('finance.inbox.fileType')}</dt><dd>{inferInboxMimeType(file.name, file.type)}</dd></div><div><dt>{t('finance.inbox.fileSize')}</dt><dd>{formatFileSize(file.size)}</dd></div></dl>}
           </>}
-          <Field label={t('finance.inbox.dateLabel')} hint={t('finance.inbox.dateHint')}><input value={asOf} onChange={event => { setAsOf(event.target.value); invalidateInput() }} placeholder="2026-10-31T00:00:00Z" /></Field>
+          <Field label={t('finance.inbox.dateLabel')} hint={t('finance.inbox.dateHint')}><input value={asOf} onChange={event => { setAsOf(event.target.value); store.updateInboxDraft({ asOf: event.target.value }); invalidateInput() }} placeholder="2026-10-31T00:00:00Z" /></Field>
           {validation !== null && <p className="rg-finance-form-error" role="alert">{validation}</p>}
           <div className="rg-finance-form-actions"><button className="rg-btn" data-primary type="submit" disabled={previewLoading || !hasInput}>{readingFile ? t('finance.inbox.readingFile') : t('finance.inbox.previewAction')}</button></div>
         </form>

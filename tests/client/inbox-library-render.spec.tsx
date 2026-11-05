@@ -203,6 +203,73 @@ describe('Inbox and Library rendering', () => {
     expect(secondHtml).not.toContain('FIRST VERSION BODY')
   })
 
+  it.each(['source', 'raw'] as const)('deduplicates Library relation buttons for a selected %s without losing explicit lineage', async selectedKind => {
+    const rig = await setup()
+    const source: GraphNode = {
+      id: 'source:quote', kind: 'source', title: 'DOGE quote', content: 'Source record',
+      metadata: { rawId: 'raw:quote', sessionId: 'session:quote' }, createdAt: 1, updatedAt: 2,
+    }
+    const raw: GraphNode = {
+      id: 'raw:quote', kind: 'raw', title: 'DOGE quote raw', content: 'Original quote body',
+      metadata: { sourceId: source.id, sessionId: 'session:quote' }, createdAt: 1, updatedAt: 2,
+    }
+    const session: GraphNode = { id: 'session:quote', kind: 'session', title: 'Quote ingestion', content: '', metadata: {}, createdAt: 1, updatedAt: 2 }
+    const edges: GraphEdge[] = [
+      { id: 'edge:raw-source', from: raw.id, to: source.id, kind: 'derived_from', metadata: {}, createdAt: 1 },
+      { id: 'edge:session-source', from: session.id, to: source.id, kind: 'produces', metadata: {}, createdAt: 1 },
+      { id: 'edge:session-raw', from: session.id, to: raw.id, kind: 'produces', metadata: {}, createdAt: 1 },
+    ]
+    const html = renderToString(createElement(LibraryPanel, {
+      store: rig.finance, t: translate(en), nodes: [source, raw, session], edges,
+      initialSelectedId: selectedKind === 'source' ? source.id : raw.id, graphPhase: 'ready', graphError: null,
+      onRefreshGraph: async () => undefined, onOpenGraph: () => undefined, onOpenHypotheses: () => undefined, locale: 'en',
+    })).replaceAll('<!-- -->', '')
+    const relationList = html.match(/<ul class="rg-library-relations">([\s\S]*?)<\/ul>/u)?.[1] ?? ''
+    expect(relationList).not.toBe('')
+    expect(Array.from(relationList.matchAll(/data-related-node-id="([^"]+)"/gu), match => match[1]))
+      .toEqual([selectedKind === 'source' ? raw.id : source.id, session.id])
+    expect(relationList).not.toContain('Related record')
+    expect(relationList).toContain(`${selectedKind === 'source' ? '←' : '→'} derived from`)
+    expect(relationList).toContain('← produces')
+    expect(html).toContain('Original quote body')
+  })
+
+  it('deduplicates Library relation buttons only for exact peers while retaining different explicit relations and missing peers', async () => {
+    const rig = await setup()
+    const source: GraphNode = { id: 'source:shared', kind: 'source', title: 'Same visible title', content: 'Source body', metadata: {}, createdAt: 1, updatedAt: 2 }
+    const raw: GraphNode = { id: 'raw:shared', kind: 'raw', title: 'Same visible title', content: 'Raw body', metadata: { sourceId: source.id }, createdAt: 1, updatedAt: 2 }
+    const metadataOnly: GraphNode = { id: 'source:metadata-only', kind: 'source', title: 'Same visible title', content: 'Metadata-only body', metadata: {}, createdAt: 1, updatedAt: 2 }
+    const claim: GraphNode = {
+      id: 'claim:relations', kind: 'claim', title: 'Claim with mixed relations', content: 'The selected claim body',
+      metadata: { references: [source.id, raw.id, metadataOnly.id] }, createdAt: 1, updatedAt: 2,
+    }
+    const edges: GraphEdge[] = [
+      { id: 'edge:supports-in', from: source.id, to: claim.id, kind: 'supports', metadata: {}, createdAt: 1 },
+      { id: 'edge:supports-out', from: claim.id, to: source.id, kind: 'supports', metadata: {}, createdAt: 1 },
+      { id: 'edge:contradicts-out', from: claim.id, to: source.id, kind: 'contradicts', metadata: {}, createdAt: 1 },
+      { id: 'edge:missing', from: claim.id, to: 'claim:missing-peer', kind: 'references', metadata: {}, createdAt: 1 },
+    ]
+    const html = renderToString(createElement(LibraryPanel, {
+      store: rig.finance, t: translate(en), nodes: [claim, source, raw, metadataOnly], edges,
+      initialSelectedId: claim.id, graphPhase: 'ready', graphError: null,
+      onRefreshGraph: async () => undefined, onOpenGraph: () => undefined, onOpenHypotheses: () => undefined, locale: 'en',
+    })).replaceAll('<!-- -->', '')
+    const relationList = html.match(/<ul class="rg-library-relations">([\s\S]*?)<\/ul>/u)?.[1] ?? ''
+    const buttons = Array.from(relationList.matchAll(/<button\b[^>]*data-related-node-id="([^"]+)"[^>]*>([\s\S]*?)<\/button>/gu), match => ({ id: match[1], html: match[2] ?? '' }))
+    expect(buttons.map(button => button.id).sort()).toEqual([raw.id, metadataOnly.id, source.id, source.id, source.id].sort())
+    const explicitButtons = buttons.filter(button => button.id === source.id)
+    expect(explicitButtons).toHaveLength(3)
+    expect(explicitButtons.every(button => !button.html.includes('Related record'))).toBe(true)
+    expect(explicitButtons.map(button => button.html).join('')).toContain('← supports')
+    expect(explicitButtons.map(button => button.html).join('')).toContain('→ supports')
+    expect(explicitButtons.map(button => button.html).join('')).toContain('→ contradicts')
+    expect(buttons.find(button => button.id === raw.id)?.html).toContain('Related record')
+    expect(buttons.find(button => button.id === metadataOnly.id)?.html).toContain('Related record')
+    expect(relationList).toContain('class="rg-library-relation-missing"')
+    expect(relationList).toContain('claim:missing-peer')
+    expect(relationList).toContain('→ references · Missing node')
+  })
+
   it('shows the authoritative workbench revision when the finance operation revision is stale', async () => {
     const rig = await setup()
     await rig.workbench.createNode({ id: 'claim:new-revision', kind: 'claim', title: 'New graph revision' })

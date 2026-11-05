@@ -2,6 +2,7 @@ import type { GraphResponse } from '../src/protocol.ts'
 import type { GraphNode, JsonValue } from '../src/graph.ts'
 import type { JsonObject } from '../src/finance/types.ts'
 import type { FinanceCommandRequest } from './protocol.ts'
+import type { ScheduleRecordLike, ScheduleRemoteLike } from './protocol.ts'
 import type { InboxFileDescriptor } from './inbox.ts'
 import { readInboxPreview } from './inbox.ts'
 import type { Notice, Translate } from './store.ts'
@@ -9,6 +10,8 @@ import type { Notice, Translate } from './store.ts'
 export interface FinanceGateway {
   request(request: FinanceCommandRequest): Promise<GraphResponse>
 }
+
+export type ScheduleListResult = { readonly ok: true; readonly value: readonly ScheduleRecordLike[] } | { readonly ok: false; readonly error: { readonly code: string; readonly message: string } }
 
 export type FinanceSection = 'overview' | 'inbox' | 'library' | 'hypotheses' | 'reports' | 'market' | 'portfolio' | 'valuations' | 'predictions' | 'ingest' | 'briefing' | 'guide'
   | 'markets' | 'crypto' | 'earnings' | 'prediction-markets' | 'screener' | 'politicians' | 'watchlist' | 'apps' | 'activity' | 'virtual-fund'
@@ -46,6 +49,14 @@ export interface MarketHistoryInput {
   readonly end?: string
   readonly range?: string
   readonly interval: string
+}
+
+export interface InboxDraft {
+  readonly source: 'rss' | 'youtube'
+  readonly url: string
+  readonly clipText: string
+  readonly file: File | null
+  readonly asOf: string
 }
 
 export interface FinanceState {
@@ -133,6 +144,7 @@ export class FinanceStore {
   private readonly pending = new Map<FinanceOperationKey, string>()
   private inboxPreview: { readonly request: FinanceCommandRequest; readonly result: JsonValue | null } | null = null
   private inboxInputRevision = 0
+  private inboxDraft: InboxDraft = { source: 'rss', url: '', clipText: '', file: null, asOf: '' }
   private noticeToken = 0
   private noticeOperation: FinanceOperationKey | null = null
 
@@ -140,9 +152,34 @@ export class FinanceStore {
     private readonly gateway: FinanceGateway,
     private readonly t: Translate,
     private readonly onGraphChange?: () => Promise<void>,
+    private schedules?: ScheduleRemoteLike,
   ) {}
 
+  setScheduleReader(schedules: ScheduleRemoteLike | undefined): void {
+    this.schedules = schedules
+  }
+
+  /** Reconcile displayed coverage with the real tasks in the original Session. */
+  async readSchedules(sessionId: string): Promise<ScheduleListResult> {
+    if (!this.schedules) return { ok: false, error: { code: 'SCHEDULE_UNAVAILABLE', message: 'The host schedule reader is unavailable.' } }
+    try {
+      const response = await this.schedules.list({ sessionId })
+      if (!response.ok) return response
+      if ('code' in response.value) return { ok: false, error: response.value }
+      return { ok: true, value: response.value }
+    } catch (error) {
+      return { ok: false, error: { code: 'SCHEDULE_UNAVAILABLE', message: error instanceof Error ? error.message : String(error) } }
+    }
+  }
+
   getSnapshot = (): FinanceState => this.state
+
+  // Sensitive, unsubmitted input stays only in this workspace store's memory.
+  getInboxDraft = (): InboxDraft => this.inboxDraft
+
+  updateInboxDraft(patch: Partial<InboxDraft>): void {
+    this.inboxDraft = { ...this.inboxDraft, ...patch }
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
@@ -176,11 +213,11 @@ export class FinanceStore {
   }
 
   /** Show an informational notice (copy feedback, guide replay) without an operation. */
-  flash(text: string): void {
+  flash(text: string, tone: 'info' | 'error' = 'info'): void {
     this.noticeToken += 1
     const token = this.noticeToken
     this.noticeOperation = null
-    this.set({ notice: { tone: 'info', text } })
+    this.set({ notice: { tone, text } })
     setTimeout(() => {
       if (this.noticeToken === token) this.set({ notice: null })
     }, 5000)
@@ -409,8 +446,8 @@ export class FinanceStore {
   }
 
   /** Read persisted paper-fund state without changing the selected market or draft. */
-  async readFundState(fundId?: string): Promise<GraphResponse> {
-    return this.run({ op: 'fund.state', input: { ...(fundId ? { fundId } : {}) } })
+  async readFundState(fundId?: string, knownRevision?: number): Promise<GraphResponse> {
+    return this.run({ op: 'fund.state', input: { ...(fundId ? { fundId } : {}), ...(knownRevision === undefined ? {} : { knownRevision }) } })
   }
 
   async snapshotPortfolio(input: JsonObject): Promise<boolean> {

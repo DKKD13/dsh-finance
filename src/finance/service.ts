@@ -118,8 +118,8 @@ export class FinanceService extends Service {
   }
 
   async fundState(input: FundStateInput = {}) {
-    const result = await this.virtualFund.state(input)
-    return { revision: await this.graph.currentRevision(), result }
+    const { revision, ...result } = await this.virtualFund.state(input)
+    return { revision, result }
   }
 
   async fundConfigure(input: FundConfigureInput) {

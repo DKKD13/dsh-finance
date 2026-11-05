@@ -57,8 +57,67 @@ DSH Finance 把市场、研究 Skills、资料、观点和模拟基金放进同�
 
 需要已安装的 **DeepSeek Harness `>=0.2.1-rc.1 <0.3.0`**，以及可用的模型配置。插件复用 Harness 的模型和原生对话，不附带模型密钥。
 
-1. 从 [Releases](https://github.com/DKKD13/dsh-finance/releases) 下载 `dsh-research-graph-0.1.0.tgz` 并解压到一个固定目录。
-2. 在 DSH 对话中，请插件管理器安装这个目录：
+### 使用 npm 包安装
+
+#### npm 是什么？
+
+npm 是 JavaScript 的包管理器与包仓库。`npm install` 负责把插件代码及其依赖安装到 Node 项目；它不会启动 DSH、配置模型或激活插件。`dsh plugin add` 才负责把同一个包加入 DSH profile。二者使用相同版本的安装包，但作用不同。
+
+当前包名为 `dsh-research-graph`，使用 `preview` 预发布标签：
+
+```sh
+npm install dsh-research-graph@preview
+dsh plugin --profile web add dsh-research-graph@preview
+```
+
+`preview` 指向当前候选版本，不修改 npm 的 `latest` 稳定通道。安装后可运行 `npm view dsh-research-graph dist-tags` 核对标签，或 `npm list dsh-research-graph` 核对实际安装版本。
+
+已有公开预览版可直接从 Release 安装：
+
+```sh
+npm install https://github.com/DKKD13/dsh-finance/releases/download/v0.1.0/dsh-research-graph-0.1.0.tgz
+dsh plugin --profile web add https://github.com/DKKD13/dsh-finance/releases/download/v0.1.0/dsh-research-graph-0.1.0.tgz
+```
+
+第一条用于普通 Node 项目，第二条才是 DSH 插件安装。这个 Release 仍是既有 `v0.1.0`，不包含后续候选修复。
+
+已有 `.tgz` 安装包时，直接安装到 DSH Web profile，无需解压：
+
+```sh
+dsh plugin --profile web add /absolute/path/to/dsh-research-graph-<version>.tgz
+```
+
+从源码生成并安装：
+
+```sh
+npm ci
+npm run build
+PACKAGE=$(npm pack --silent)
+dsh plugin --profile web add "$PWD/$PACKAGE"
+```
+
+普通 Node 项目也可以使用 `npm install /absolute/path/to/dsh-research-graph-<version>.tgz`，但该命令不会替 DSH 激活插件。完整的安装、升级与兼容说明见 [npm 安装与激活说明](docs/guides/npm-install.md)。
+
+### 插件与 DSH 如何一起升级
+
+插件与 DSH 分别发布，**DSH 更新不会自动更新插件，也不会保证旧插件自动兼容**。`@preview` 只在你执行安装命令时选择当时的预发布版本，不是自动更新开关。
+
+| 项目 | 当前约定 |
+| --- | --- |
+| 本候选插件 | `0.1.0-dev.2` |
+| 已实测宿主 | DSH `0.2.1-rc.5` |
+| 声明兼容范围 | `>=0.2.1-rc.1 <0.3.0` |
+| Host / Client 契约 | Cordis、Commands、Session、Remote、Typert、宿主 UI slot |
+| 模型与数据 | 由 DSH 管理；插件不附带密钥，不用 npm 包版本证明模型研究质量 |
+
+升级 DSH 或插件前，先备份 `~/.dsh-research-graph/` 或自定义 `dataDir`，不要覆盖现有 profile。在新的隔离 profile 中安装目标组合，核对宿主 API、插件激活、真实会话、资料与报告读回、图谱和基金记录，再替换日常使用版本。DSH `0.3.x` 不在当前声明兼容范围内，不能仅靠提升版本号放行。
+
+本次候选新增了正式 `financeWorkbench` Remote 快照与基金读取、revision 轮询、图谱标签避让、计划失效核对和 npm 安装路径。旧大历史恢复、模型研究语义、真实后台持续覆盖的完整启停与工具卡分发仍需继续验收，不能由安装成功代替这些结论。
+
+### 在 DSH 中激活
+
+1. 从 [Releases](https://github.com/DKKD13/dsh-finance/releases) 下载 `dsh-research-graph-0.1.0.tgz` 到固定目录；只有选择目录安装时才需要解压。
+2. 使用上面的 `dsh plugin --profile web add <安装包路径>` 完成安装；也可以在 DSH 对话中，请插件管理器安装解压后的 `package` 目录：
 
    ```text
    请使用 plugin_manager 的 install_bundle，安装以下本地目录：

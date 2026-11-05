@@ -3,7 +3,7 @@ import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import type { Translate } from '../store.ts'
 import type { MarketBar, PortfolioReturnPoint } from '../chart-data.ts'
 import { aggregateMarketBars, lineSegments, nextChartIndex, nextMatrixIndex, pointerChartIndex, readCalibration, readMarketHistory } from '../chart-data.ts'
-import { FinanceEmpty, formatNumber, LazyDetails, ProvenanceList } from './FinanceCommon.tsx'
+import { FinanceEmpty, formatAmount, formatNumber, formatPercent, LazyDetails, ProvenanceList } from './FinanceCommon.tsx'
 import { STOCK_CHART_STYLE } from '../finance-stock-chart-styles.ts'
 
 export interface ChartTable {
@@ -292,21 +292,32 @@ export interface ScenarioItem {
   readonly perShare: number | null
 }
 
-export function ScenarioBars({ items, currency, selected, onSelect, t }: {
+export interface ScenarioReference {
+  readonly price: number
+  readonly asOf: string
+  readonly provider: string
+}
+
+export function ScenarioBars({ items, currency, selected, onSelect, reference, t }: {
   readonly items: readonly ScenarioItem[]
   readonly currency: string
   readonly selected?: string | null
   readonly onSelect?: (name: string) => void
+  readonly reference?: ScenarioReference | undefined
   readonly t: Translate
 }) {
-  const max = Math.max(1e-9, ...items.map(item => Math.abs(item.perShare ?? 0)))
+  // Extend the plot domain with a saved-quote reference that sits outside every
+  // scenario value so the price-vs-scenario distance stays visible. Scenario
+  // values are never clamped and the valuation itself is never recomputed.
+  const max = Math.max(1e-9, ...items.map(item => Math.abs(item.perShare ?? 0)), reference !== undefined && Number.isFinite(reference.price) ? Math.abs(reference.price) : 0)
+  const referenceX = reference !== undefined && Number.isFinite(reference.price) ? 90 + (reference.price / max) * 86 : null
   return (
-    <ChartFrame title={t('finance.valuation.scenarioValues')} description={t('finance.valuation.scenarioValuesHint')} t={t} table={{ columns: [t('finance.valuation.columns.scenario'), t('finance.valuation.columns.probability'), t('finance.valuation.columns.perShare')], rows: items.map(item => [item.name, exactNumber(item.probability), exactNumber(item.perShare)]) }}>
+    <ChartFrame title={t('finance.valuation.scenarioValues')} description={t('finance.valuation.scenarioValuesHint')} t={t} table={{ columns: [t('finance.valuation.columns.scenario'), t('finance.valuation.columns.probability'), t('finance.valuation.columns.perShare')], rows: items.map(item => [item.name, exactNumber(item.probability), exactNumber(item.perShare)]) }} legend={reference !== undefined ? <><span data-series="price">{t('finance.valuation.perShare')}</span><span data-series="reference">{t('finance.valuation.priceReference')}</span></> : undefined}>
       {items.length === 0 ? <FinanceEmpty>{t('chart.noScenarios')}</FinanceEmpty> : <div className="rg-scenario-bars">{items.map(item => {
         const width = item.perShare === null ? 0 : (Math.abs(item.perShare) / max) * 86
         return <button type="button" key={item.name} data-selected={selected === item.name || undefined} aria-pressed={selected === item.name} onClick={() => { onSelect?.(item.name) }}>
-          <span>{item.name}<small>{t('finance.valuation.columns.probability')} {formatNumber(item.probability)}</small></span>
-          <svg viewBox="0 0 180 28" role="img" aria-label={`${item.name}: ${formatNumber(item.perShare)} ${currency}`}><line className="rg-chart-zero" x1="90" x2="90" y1="2" y2="26" />{item.perShare !== null && <rect className="rg-chart-pnl" data-direction={item.perShare >= 0 ? 'positive' : 'negative'} x={item.perShare >= 0 ? 90 : 90 - width} y="7" width={Math.max(1, width)} height="13" />}<text x={item.perShare !== null && item.perShare < 0 ? 86 : 94} y="18" textAnchor={item.perShare !== null && item.perShare < 0 ? 'end' : 'start'}>{formatNumber(item.perShare)}</text></svg>
+          <span>{item.name}<small>{t('finance.valuation.columns.probability')} {formatPercent(item.probability)}</small></span>
+          <svg viewBox="0 0 180 28" role="img" aria-label={`${item.name}: ${formatAmount(item.perShare)} ${currency}`}><line className="rg-chart-zero" x1="90" x2="90" y1="2" y2="26" />{referenceX !== null && <line className="rg-scenario-reference" x1={referenceX} x2={referenceX} y1="2" y2="26"><title>{t('finance.valuation.priceReferenceTitle', { price: exactNumber(reference?.price), provider: reference?.provider ?? '', asOf: reference?.asOf ?? '' })}</title></line>}{item.perShare !== null && <rect className="rg-chart-pnl" data-direction={item.perShare >= 0 ? 'positive' : 'negative'} x={item.perShare >= 0 ? 90 : 90 - width} y="7" width={Math.max(1, width)} height="13" />}<text x={item.perShare !== null && item.perShare < 0 ? 86 : 94} y="18" textAnchor={item.perShare !== null && item.perShare < 0 ? 'end' : 'start'}>{formatAmount(item.perShare)}</text></svg>
         </button>
       })}</div>}
     </ChartFrame>
@@ -340,9 +351,12 @@ export function SensitivityMatrix({ rows, center, currency, warnings, source, t 
   const finite = cells.map(cell => cell.perShare).filter((value): value is number => value !== null)
   const minimum = finite.length === 0 ? 0 : Math.min(...finite)
   const maximum = finite.length === 0 ? 1 : Math.max(...finite)
+  const baseValue = center?.perShare ?? null
+  const hasBase = baseValue !== null && Number.isFinite(baseValue)
+  const maxDeviation = hasBase ? Math.max(1e-9, ...finite.map(value => Math.abs(value - (baseValue as number)))) : 0
   const active = cells[activeIndex]
   const activeRow = rows[Math.floor(activeIndex / Math.max(1, columns.length))]
-  const cellWidth = Math.max(124, ...cells.map(cell => formatNumber(cell.perShare).length * 8 + 24))
+  const cellWidth = Math.max(124, ...cells.map(cell => formatAmount(cell.perShare).length * 8 + 24))
   const cellHeight = 58
   const left = 92
   const top = 66
@@ -367,13 +381,20 @@ export function SensitivityMatrix({ rows, center, currency, warnings, source, t 
       {rows.length === 0 || columns.length === 0 ? <FinanceEmpty>{t('chart.noSensitivity')}</FinanceEmpty> : <>
         <div className="rg-chart-matrix-scroll"><svg className="rg-sensitivity-matrix" viewBox={`0 0 ${width} ${height}`} role="group" aria-label={t('finance.valuation.sensitivity')}>
           <text className="rg-chart-axis-title" x={left} y="18">{t('finance.valuation.columns.terminalGrowth')}</text>
-          {columns.map((cell, column) => <text key={cell.terminalGrowth} className="rg-chart-axis-label" x={left + column * cellWidth + cellWidth / 2} y="46" textAnchor="middle">{formatNumber(cell.terminalGrowth)}</text>)}
+          {columns.map((cell, column) => <text key={cell.terminalGrowth} className="rg-chart-axis-label" x={left + column * cellWidth + cellWidth / 2} y="46" textAnchor="middle">{formatPercent(cell.terminalGrowth)}</text>)}
           {rows.map((row, rowIndex) => <g key={row.wacc}>
-            <text className="rg-chart-axis-label" x={left - 12} y={top + rowIndex * cellHeight + cellHeight / 2 + 4} textAnchor="end">{formatNumber(row.wacc)}</text>
+            <text className="rg-chart-axis-label" x={left - 12} y={top + rowIndex * cellHeight + cellHeight / 2 + 4} textAnchor="end">{formatPercent(row.wacc)}</text>
             {row.values.map((cell, columnIndex) => {
               const index = rowIndex * columns.length + columnIndex
               const isBase = rowIndex === baseRow && columnIndex === baseColumn
-              const ratio = cell.perShare === null || maximum === minimum ? 0.5 : (cell.perShare - minimum) / (maximum - minimum)
+              // Diverging scale around the base scenario: above base reads as upside (positive),
+              // below base as downside (negative); without a base cell fall back to the min-max ramp.
+              const direction = cell.perShare === null || !hasBase ? undefined
+                : cell.perShare > (baseValue as number) ? 'positive'
+                : cell.perShare < (baseValue as number) ? 'negative' : undefined
+              const fillOpacity = hasBase
+                ? 0.08 + (cell.perShare === null ? 0 : Math.min(1, Math.abs(cell.perShare - (baseValue as number)) / maxDeviation)) * 0.3
+                : 0.06 + (cell.perShare === null || maximum === minimum ? 0.5 : (cell.perShare - minimum) / (maximum - minimum)) * 0.2
               return <g
                 key={cell.terminalGrowth}
                 data-matrix-index={index}
@@ -390,14 +411,15 @@ export function SensitivityMatrix({ rows, center, currency, warnings, source, t 
                   select(next, event.currentTarget)
                 }}
               >
-                <rect className="rg-sensitivity-cell" x={left + columnIndex * cellWidth + 2} y={top + rowIndex * cellHeight + 2} width={cellWidth - 4} height={cellHeight - 4} fillOpacity={0.06 + Math.max(0, Math.min(1, ratio)) * 0.2} />
+                <rect className="rg-sensitivity-cell" data-direction={direction} x={left + columnIndex * cellWidth + 2} y={top + rowIndex * cellHeight + 2} width={cellWidth - 4} height={cellHeight - 4} fillOpacity={fillOpacity} />
+                <title>{`${t('finance.valuation.wacc')} ${exactNumber(row.wacc)} · ${t('finance.valuation.columns.terminalGrowth')} ${exactNumber(cell.terminalGrowth)} · ${t('finance.valuation.perShare')} ${exactNumber(cell.perShare)} ${currency}`}</title>
                 {isBase && <><rect className="rg-sensitivity-base-outer" x={left + columnIndex * cellWidth + 1} y={top + rowIndex * cellHeight + 1} width={cellWidth - 2} height={cellHeight - 2} /><rect className="rg-sensitivity-base-inner" x={left + columnIndex * cellWidth + 5} y={top + rowIndex * cellHeight + 5} width={cellWidth - 10} height={cellHeight - 10} /></>}
-                <text className="rg-sensitivity-value" x={left + columnIndex * cellWidth + cellWidth / 2} y={top + rowIndex * cellHeight + cellHeight / 2 + 4} textAnchor="middle">{formatNumber(cell.perShare)}</text>
+                <text className="rg-sensitivity-value" x={left + columnIndex * cellWidth + cellWidth / 2} y={top + rowIndex * cellHeight + cellHeight / 2 + 4} textAnchor="middle">{formatAmount(cell.perShare)}</text>
               </g>
             })}
           </g>)}
         </svg></div>
-        <p className="rg-chart-selection" role="status">{activeRow !== undefined && active !== undefined ? `${t('finance.valuation.wacc')} ${exactNumber(activeRow.wacc)} · ${t('finance.valuation.columns.terminalGrowth')} ${exactNumber(active.terminalGrowth)} · ${exactNumber(active.perShare)} ${currency}` : '—'}</p>
+        <p className="rg-chart-selection" role="status">{activeRow !== undefined && active !== undefined ? `${t('finance.valuation.wacc')} ${formatPercent(activeRow.wacc)} · ${t('finance.valuation.columns.terminalGrowth')} ${formatPercent(active.terminalGrowth)} · ${formatAmount(active.perShare)} ${currency}` : '—'}</p>
         <p className="rg-chart-hint">{t('chart.matrixKeyboard')}</p>
       </>}
       {warnings.length > 0 && <ul className="rg-chart-warnings">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
@@ -439,4 +461,3 @@ export function CalibrationPlot({ value, t }: { readonly value: unknown; readonl
 export function ReturnSparkline({ points, t }: { readonly points: readonly PortfolioReturnPoint[]; readonly t: Translate }) {
   return <Sparkline values={points.map(point => point.value)} label={t('finance.portfolio.returns')} emptyLabel={t('finance.portfolio.noReturns')} />
 }
-

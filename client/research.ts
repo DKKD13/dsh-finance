@@ -196,6 +196,55 @@ export function reportOrigin(node: GraphNode): 'briefing' | 'skill' | 'deliverab
   return 'deliverable'
 }
 
+
+/** File contexts can exist even when a blank or archived session is omitted from conversation choices. */
+export function visualArtifactSessionId(metadata: Record<string, unknown> | undefined, fallback?: string): string | undefined {
+  const recorded = metadata?.sessionId
+  return typeof recorded === 'string' && recorded.trim().length > 0 ? recorded : fallback
+}
+
+/**
+ * A usable `metadata.visualArtifact` entry: an HTML path the installed host's
+ * sidebar document preview can read. The host contract (`sessionFileAddress`)
+ * accepts workspace-relative paths and absolute paths alike; absolute records
+ * from earlier machines therefore stay openable when the file still exists,
+ * and surface the host's own not-found state when it does not. URLs, parent
+ * traversal, UNC shares and non-HTML values render no entry rather than a
+ * broken one.
+ */
+export function visualArtifactPath(metadata: Record<string, unknown> | undefined): string | undefined {
+  const value = metadata?.visualArtifact
+  if (typeof value !== 'string') return undefined
+  const raw = value.trim()
+  if (raw.length === 0 || raw.length > 240 || !/\.html?$/iu.test(raw)) return undefined
+  if (raw.includes('://') || raw.startsWith('\\\\')) return undefined
+  if (/^[A-Za-z]:[\\/]/u.test(raw)) {
+    // Windows drive path: hand the host the `/`-separated spelling it accepts.
+    const path = raw.replace(/\\/g, '/')
+    if (path.split('/').some(segment => segment === '..' || segment === '.' || segment === '')) return undefined
+    return path
+  }
+  if (raw.startsWith('/')) {
+    const segments = raw.split('/').slice(1)
+    if (segments.some(segment => segment === '..' || segment === '.' || segment === '' || segment.includes('\\'))) return undefined
+    return raw
+  }
+  if (raw.startsWith('\\')) return undefined
+  if (raw.split('/').some(segment => segment === '..' || segment === '.' || segment.includes('\\'))) return undefined
+  return raw
+}
+
+/**
+ * Whether a report records a visual artifact whose path shape this bundle
+ * cannot open (e.g. legacy absolute paths). Such records still exist and
+ * must surface as "present but not locatable", never as "no artifact".
+ */
+export function hasVisualArtifact(metadata: Record<string, unknown> | undefined): boolean {
+  const value = metadata?.visualArtifact
+  if (typeof value !== 'string') return false
+  return value.trim().length > 0 && visualArtifactPath(metadata) === undefined
+}
+
 export function displayAssessment(value: unknown): string {
   if (typeof value === 'string') return value
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)

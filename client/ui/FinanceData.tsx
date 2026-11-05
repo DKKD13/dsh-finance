@@ -2,8 +2,9 @@ import { useState } from 'react'
 import type { JsonValue } from '../../src/graph.ts'
 import type { Translate } from '../store.ts'
 import { readPortfolioReturns } from '../chart-data.ts'
-import { asRecord, displayValue, FinanceEmpty, formatNumber, operationResult, Provenance, ProvenanceList, RawJson } from './FinanceCommon.tsx'
+import { asRecord, displayValue, FinanceEmpty, formatAmount, formatNumber, formatPercent, operationResult, Provenance, ProvenanceList, RawJson } from './FinanceCommon.tsx'
 import { AllocationBars, ChartFrame, ReturnSparkline, ScenarioBars, SensitivityMatrix } from './FinanceCharts.tsx'
+import type { ScenarioReference } from './FinanceCharts.tsx'
 
 function recordArray(value: unknown, depth = 0): Record<string, unknown>[] | undefined {
   if (depth > 4) return undefined
@@ -51,6 +52,14 @@ export function PrimitiveSummary({ value }: { readonly value: unknown }) {
     && (entry === null || ['string', 'number', 'boolean'].includes(typeof entry))).slice(0, 14)
   if (entries.length === 0) return null
   return <dl className="rg-finance-summary">{entries.map(([key, entry]) => <div key={key}><dt>{key}</dt><dd>{displayValue(entry)}</dd></div>)}</dl>
+}
+
+/** Surface a Host result's `warnings` array as a visible notice, not just Raw JSON. */
+export function ResultWarnings({ value }: { readonly value: unknown }) {
+  const record = asRecord(value)
+  const warnings = Array.isArray(record?.warnings) ? record.warnings.filter((entry): entry is string => typeof entry === 'string') : []
+  if (warnings.length === 0) return null
+  return <ul className="rg-chart-warnings">{warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul>
 }
 
 export function MarketResult({ value, t }: { readonly value: JsonValue | null; readonly t: Translate }) {
@@ -142,7 +151,7 @@ export function PortfolioResult({ value, provenanceValue, instrumentLabels, t }:
   )
 }
 
-export function ValuationResult({ value, provenanceValue, t }: { readonly value: unknown; readonly provenanceValue?: unknown; readonly t: Translate }) {
+export function ValuationResult({ value, provenanceValue, priceReference, t }: { readonly value: unknown; readonly provenanceValue?: unknown; readonly priceReference?: ScenarioReference | undefined; readonly t: Translate }) {
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null)
   const lineage = provenanceValue ?? value
   const result = asRecord(operationResult(value as JsonValue | null))
@@ -166,10 +175,11 @@ export function ValuationResult({ value, provenanceValue, t }: { readonly value:
         <div><dt>{t('finance.valuation.method')}</dt><dd>{displayValue(result.method)}</dd></div>
         <div><dt>{t('finance.valuation.currency')}</dt><dd>{currency}</dd></div>
         {['enterpriseValue', 'equityValue', 'perShare', 'peerMedian'].map(key => weighted[key] !== undefined || result[key] !== undefined
-          ? <div key={key}><dt>{t(`finance.valuation.${key}`)}</dt><dd>{formatNumber(weighted[key] ?? result[key])}</dd></div>
+          ? <div key={key}><dt>{t(`finance.valuation.${key}`)}</dt><dd>{formatAmount(weighted[key] ?? result[key])}</dd></div>
           : null)}
+        {priceReference !== undefined && <div><dt>{t('finance.valuation.priceReference')}</dt><dd>{formatAmount(priceReference.price)} {currency} · {priceReference.provider} · {displayValue(priceReference.asOf)}</dd></div>}
       </dl>
-      <ScenarioBars items={scenarios.map((scenario, index) => ({ name: displayValue(scenario.name ?? index), probability: typeof scenario.probability === 'number' ? scenario.probability : null, perShare: typeof scenario.perShare === 'number' ? scenario.perShare : null }))} currency={currency} selected={selectedScenario} onSelect={setSelectedScenario} t={t} />
+      <ScenarioBars items={scenarios.map((scenario, index) => ({ name: displayValue(scenario.name ?? index), probability: typeof scenario.probability === 'number' ? scenario.probability : null, perShare: typeof scenario.perShare === 'number' ? scenario.perShare : null }))} currency={currency} selected={selectedScenario} onSelect={setSelectedScenario} reference={priceReference} t={t} />
       {scenarios.length > 0 && (
         <section className="rg-finance-subsection"><h4>{t('finance.valuation.assumptions')}</h4>
           <div className="rg-finance-table-wrap"><table className="rg-finance-table">
@@ -178,7 +188,7 @@ export function ValuationResult({ value, provenanceValue, t }: { readonly value:
               const statements = Array.isArray(scenario.incomeStatement) ? scenario.incomeStatement : []
               const taxRate = asRecord(statements[0])?.taxRate ?? scenario.taxRate
               const name = displayValue(scenario.name ?? index)
-              return <tr key={name} data-selected={selectedScenario === name || undefined}><td><button type="button" className="rg-finance-table-link" aria-pressed={selectedScenario === name} onClick={() => { setSelectedScenario(name) }}>{name}</button></td><td>{formatNumber(scenario.probability)}</td><td>{formatNumber(scenario.wacc)}</td><td>{formatNumber(scenario.terminalGrowth)}</td><td>{formatNumber(taxRate)}</td><td>{formatNumber(scenario.equityValue)}</td><td>{formatNumber(scenario.perShare)}</td></tr>
+              return <tr key={name} data-selected={selectedScenario === name || undefined}><td><button type="button" className="rg-finance-table-link" aria-pressed={selectedScenario === name} onClick={() => { setSelectedScenario(name) }}>{name}</button></td><td>{formatPercent(scenario.probability)}</td><td>{formatPercent(scenario.wacc)}</td><td>{formatPercent(scenario.terminalGrowth)}</td><td>{formatPercent(taxRate)}</td><td>{formatAmount(scenario.equityValue)}</td><td>{formatAmount(scenario.perShare)}</td></tr>
             })}</tbody>
           </table></div>
         </section>

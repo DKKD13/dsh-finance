@@ -3,13 +3,14 @@ import type { FormEvent } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { GraphEdge, GraphNode } from '../../src/graph.ts'
-import { expectedArtifactIds, historicalResearch, isResearchSource, reportCitations, reportOrigin, reportOutline, versionChain } from '../research.ts'
+import { expectedArtifactIds, hasVisualArtifact, historicalResearch, isResearchSource, reportCitations, reportOrigin, reportOutline, versionChain, visualArtifactPath, visualArtifactSessionId } from '../research.ts'
 import { protectReportCurrency } from '../report-markdown.ts'
 import type { ResearchMode, ResearchRequest } from '../research.ts'
 import type { ResearchStore } from '../research-store.ts'
 import type { Translate } from '../store.ts'
 import { Field, FinanceEmpty, Provenance, RawJson } from './FinanceCommon.tsx'
 import { ResearchGraphBoundary, useResearch } from './ResearchCommon.tsx'
+import { hostNavigator } from '../host-nav.ts'
 import type { ConversationAccess, ConversationSeed } from './ConversationDialog.tsx'
 
 interface ReportsPanelProps {
@@ -121,6 +122,7 @@ export function ReportsPanel({ research, t, nodes, edges, graphPhase, graphError
   const restoreFocus = useRef(false)
   const [drill, setDrill] = useState(false)
   const [conversationError, setConversationError] = useState('')
+  const [artifactError, setArtifactError] = useState('')
   const [fallbackStartOpen, setFallbackStartOpen] = useState(false)
   const zh = locale ? locale.startsWith('zh') : t('reports.title') === '历史研究'
   const text = (cn: string, en: string) => zh ? cn : en
@@ -136,6 +138,29 @@ export function ReportsPanel({ research, t, nodes, edges, graphPhase, graphError
   const activeCompany = active === undefined ? undefined : reportCompany(active, nodes, edges)
   const activeSymbol = active === undefined ? undefined : reportSymbol(active, nodes, edges)
   const activeMode = active === undefined ? undefined : explicitMode(active)
+  const artifactPath = active === undefined ? undefined : visualArtifactPath(active.metadata)
+  const artifactUnsupported = active !== undefined && artifactPath === undefined && hasVisualArtifact(active.metadata)
+  const openVisualArtifact = async () => {
+    if (active === undefined || artifactPath === undefined) return
+    const navigator = hostNavigator()
+    if (navigator === undefined) {
+      setArtifactError(text('当前宿主不支持侧栏文档预览。', 'This host does not support the sidebar document preview.'))
+      return
+    }
+    const sessionId = visualArtifactSessionId(active.metadata, reportSession(active))
+    if (sessionId === undefined) {
+      setArtifactError(text('找不到产物所属对话，无法定位文件。', 'Could not locate the conversation that produced this artifact.'))
+      return
+    }
+    setArtifactError('')
+    try {
+      if (!await navigator.openFilePreview(sessionId, artifactPath)) {
+        setArtifactError(text('无法打开可视化。', 'Could not open the visual artifact.'))
+      }
+    } catch (cause) {
+      setArtifactError(text('无法打开可视化。', 'Could not open the visual artifact.') + ' ' + (cause instanceof Error ? cause.message : String(cause)))
+    }
+  }
   const openConversation = async (id: string) => {
     setConversationError('')
     try { await conversations?.open(id) }
@@ -175,6 +200,7 @@ export function ReportsPanel({ research, t, nodes, edges, graphPhase, graphError
     <div className="rg-finance-section-head rg-report-history-head"><div><h2 id="rg-reports-title">{t('reports.title')}</h2><p>{t('reports.description')}</p></div><div className="rg-report-history-head-actions"><span>{text(`${reports.length} 份研究`, `${reports.length} research ${reports.length === 1 ? 'report' : 'reports'}`)}</span><button type="button" className="rg-btn" onClick={() => { if (onResearch !== undefined) startWorkflow(); else setFallbackStartOpen(value => !value) }}>{onResearch !== undefined ? text('新建研究', 'New research') : t('reports.start.action')}</button></div></div>
     {onResearch === undefined && <StartResearch research={research} t={t} reports={reports} open={fallbackStartOpen} onClose={() => { setFallbackStartOpen(false) }} />}
     {conversationError.length > 0 && <p role="alert">{conversationError}</p>}
+    {artifactError.length > 0 && <p role="alert">{artifactError}</p>}
     <div className="rg-reports rg-report-history" data-drill={drill && active !== undefined ? 'reader' : 'list'}>
       <div className="rg-report-list" aria-label={t('reports.list')}>
         <div ref={listFallback} tabIndex={-1} className="rg-library-list-head"><span>{t('reports.list')}</span><span>{reports.length}</span></div>
@@ -200,7 +226,7 @@ export function ReportsPanel({ research, t, nodes, edges, graphPhase, graphError
       </div>
       <article className="rg-report-reader" aria-label={t('reports.reader')}>
         {active === undefined ? <div className="rg-state"><p>{text('完成研究后，报告正文会显示在这里。', 'Completed report content will appear here.')}</p></div> : <>
-          <header className="rg-report-reader-head rg-report-history-reader-head"><button type="button" className="rg-btn rg-report-back" onClick={() => { restoreFocus.current = true; setDrill(false) }}>{t('finance.library.back')}</button><div><div className="rg-report-history-detail-meta"><span>{t(`reports.origin.${reportOrigin(active)}`)}</span>{activeCompany !== undefined && <span>{activeCompany}</span>}{activeSymbol !== undefined && <span>{activeSymbol}</span>}{activeMode !== undefined && <span>{activeMode === 'ticker' ? text('公司研究', 'Company') : activeMode === 'question' ? text('问题研究', 'Question') : text('深入研究', 'Deep research')}</span>}</div><h3 ref={detailTitle} tabIndex={-1}>{active.title}</h3>{formatReportDate(active.updatedAt, locale).length > 0 && <time dateTime={new Date(active.updatedAt).toISOString()}>{formatReportDate(active.updatedAt, locale)}</time>}</div><div className="rg-report-history-actions">{activeSessionId !== undefined && <button type="button" className="rg-btn" data-primary onClick={() => { void openConversation(activeSessionId) }}>{text('打开原对话', 'Open original conversation')}</button>}{conversations && onResearch && <button type="button" className="rg-btn" onClick={() => { onResearch({ mode: 'deep', baseReportId: active.id }) }}>{text('继续研究', 'Continue research')}</button>}<button type="button" className="rg-btn" onClick={() => { onOpenGraph(active.id) }}>{t('finance.library.openGraph')}</button></div></header>
+          <header className="rg-report-reader-head rg-report-history-reader-head"><button type="button" className="rg-btn rg-report-back" onClick={() => { restoreFocus.current = true; setDrill(false) }}>{t('finance.library.back')}</button><div><div className="rg-report-history-detail-meta"><span>{t(`reports.origin.${reportOrigin(active)}`)}</span>{activeCompany !== undefined && <span>{activeCompany}</span>}{activeSymbol !== undefined && <span>{activeSymbol}</span>}{activeMode !== undefined && <span>{activeMode === 'ticker' ? text('公司研究', 'Company') : activeMode === 'question' ? text('问题研究', 'Question') : text('深入研究', 'Deep research')}</span>}</div><h3 ref={detailTitle} tabIndex={-1}>{active.title}</h3>{formatReportDate(active.updatedAt, locale).length > 0 && <time dateTime={new Date(active.updatedAt).toISOString()}>{formatReportDate(active.updatedAt, locale)}</time>}</div><div className="rg-report-history-actions">{artifactPath !== undefined && <button type="button" className="rg-btn" title={artifactPath} onClick={openVisualArtifact}>{text('打开可视化', 'Open visual')}</button>}{artifactUnsupported && <button type="button" className="rg-btn" disabled>{text('可视化产物（历史路径，当前不可定位）', 'Visual artifact (legacy path, not locatable)')}</button>}{activeSessionId !== undefined && <button type="button" className="rg-btn" data-primary onClick={() => { void openConversation(activeSessionId) }}>{text('打开原对话', 'Open original conversation')}</button>}{conversations && onResearch && <button type="button" className="rg-btn" onClick={() => { onResearch({ mode: 'deep', baseReportId: active.id }) }}>{text('继续研究', 'Continue research')}</button>}<button type="button" className="rg-btn" onClick={() => { onOpenGraph(active.id) }}>{t('finance.library.openGraph')}</button></div></header>
           <div className="rg-report-reading-layout">
             <div className="rg-report-markdown"><MarkdownText text={protectReportCurrency(active.content)} labels={labels} omitHtml /></div>
             <aside className="rg-report-outline" aria-label={t('reports.outline')}>
